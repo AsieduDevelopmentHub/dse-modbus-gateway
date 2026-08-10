@@ -22,7 +22,8 @@ void Cli::begin() {
 void Cli::applySelectedDevice() {
   const ModbusDeviceConfig &d = devices.selected();
   _slaveId = d.slaveId;
-  rs485.applyConfig(d.baudRate, d.dataBits, d.parity, d.stopBits);
+  _baudRate = d.baudRate;
+  rs485.applyConfig(_baudRate, d.dataBits, d.parity, d.stopBits);
 }
 
 ModbusTxnInfo Cli::makeTxnInfo() const {
@@ -30,7 +31,7 @@ ModbusTxnInfo Cli::makeTxnInfo() const {
   ModbusTxnInfo info;
   info.deviceName = d.name;
   info.deviceSerial = d.serial;
-  info.baud = d.baudRate;
+  info.baud = _baudRate;
   info.dataBits = d.dataBits;
   info.parity = d.parity;
   info.stopBits = d.stopBits;
@@ -48,6 +49,8 @@ void Cli::printBanner() {
   Serial.println(d.name);
   Serial.print(F("Slave ID: "));
   Serial.println(_slaveId);
+  Serial.print(F("Baud: "));
+  Serial.println(_baudRate);
   Serial.print(F("Diagnostic: "));
   Serial.println(modbus.diagnostic() ? F("ON") : F("OFF"));
   Serial.println();
@@ -61,7 +64,7 @@ void Cli::printHelp() {
   Serial.println(F("  devices | device list|show|select <key>"));
   Serial.println(F("  read <addr> <qty> | readhex <hex> <qty>"));
   Serial.println(F("  rawread <slave> <fc> <hex_addr> <qty>"));
-  Serial.println(F("  set slave <id> | set fc <03|04>"));
+  Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
   Serial.println(F("  crc-test"));
   Serial.println(F("  diagnostic on|off"));
   Serial.println(F("  repeat <n> <slave> <fc> <hex_addr> <qty>"));
@@ -82,6 +85,8 @@ void Cli::printStatus() {
   Serial.println(d.name);
   Serial.print(F("Slave: "));
   Serial.println(_slaveId);
+  Serial.print(F("Baud: "));
+  Serial.println(_baudRate);
   Serial.print(F("FC: 0x"));
   Serial.println(_functionCode, HEX);
   Serial.print(F("Diagnostic: "));
@@ -179,7 +184,8 @@ void Cli::cmdSet(char *args) {
   char *tok = strtok(args, " \t");
   char *val = strtok(nullptr, " \t");
   if (!tok || !val) {
-    Serial.println(F("Usage: set slave <id> | set fc <03|04>"));
+    Serial.println(
+        F("Usage: set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
     return;
   }
   if (strcasecmp(tok, "slave") == 0) {
@@ -202,6 +208,20 @@ void Cli::cmdSet(char *args) {
     _functionCode = static_cast<uint8_t>(fc);
     Serial.print(F("FC set to 0x"));
     Serial.println(_functionCode, HEX);
+    return;
+  }
+  if (strcasecmp(tok, "baud") == 0) {
+    const long baud = strtol(val, nullptr, 10);
+    if (baud != 4800 && baud != 9600 && baud != 19200) {
+      Serial.println(F("ERROR: baud must be 4800, 9600, or 19200"));
+      return;
+    }
+    const ModbusDeviceConfig &d = devices.selected();
+    _baudRate = static_cast<uint32_t>(baud);
+    rs485.applyConfig(_baudRate, d.dataBits, d.parity, d.stopBits);
+    Serial.print(F("UART baud set to "));
+    Serial.print(_baudRate);
+    Serial.println(F(" (runtime override; device select resets to profile)"));
     return;
   }
   Serial.println(F("Unknown set target"));

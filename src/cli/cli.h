@@ -31,6 +31,7 @@ private:
 
   uint8_t _slaveId;
   uint8_t _functionCode;
+  uint32_t _baudRate;
 };
 
 extern Cli cli;
