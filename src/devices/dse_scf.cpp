@@ -26,6 +26,7 @@ const DseScfCommand kCmds[] = {
     {"clear_telem_alarm", 35735, "Clear telemetry alarm flag"},
     {"lock_controls", 35736, "Lock user controls"},
     {"unlock_controls", 35737, "Unlock user controls"},
+    {"reset_maint", 35738, "Reset maintenance alarm 1 due times"},
 };
 
 constexpr size_t kCmdCount = sizeof(kCmds) / sizeof(kCmds[0]);

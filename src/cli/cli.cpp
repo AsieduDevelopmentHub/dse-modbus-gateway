@@ -341,11 +341,14 @@ void Cli::cmdPoll(char *args) {
       return strcmp(r.key, "oil_press") == 0 ||
              strcmp(r.key, "coolant_temp") == 0 ||
              strcmp(r.key, "oil_temp") == 0 || strcmp(r.key, "fuel_level") == 0 ||
-             strcmp(r.key, "battery_v") == 0 || strcmp(r.key, "eng_rpm") == 0 ||
-             strcmp(r.key, "eng_status") == 0 || strcmp(r.key, "op_mode") == 0 ||
-             strcmp(r.key, "eng_hours") == 0 ||
+             strcmp(r.key, "battery_v") == 0 ||
+             strcmp(r.key, "charge_alt_v") == 0 ||
+             strcmp(r.key, "eng_rpm") == 0 || strcmp(r.key, "eng_status") == 0 ||
+             strcmp(r.key, "op_mode") == 0 || strcmp(r.key, "eng_hours") == 0 ||
              strcmp(r.key, "eng_starts") == 0 ||
-             strcmp(r.key, "gen_pct_kw") == 0;
+             strcmp(r.key, "gen_pct_kw") == 0 ||
+             strcmp(r.key, "oil_level") == 0 ||
+             strcmp(r.key, "coolant_level") == 0;
     }
     if (strcasecmp(mode, "power") == 0) {
       return strncmp(r.key, "gen_p", 5) == 0 ||
@@ -356,16 +359,17 @@ void Cli::cmdPoll(char *args) {
              strcmp(r.key, "gen_pct_kw") == 0;
     }
     // basic
-    return strcmp(r.key, "battery_v") == 0 || strcmp(r.key, "eng_rpm") == 0 ||
-           strcmp(r.key, "eng_status") == 0 || strcmp(r.key, "op_mode") == 0 ||
-           strcmp(r.key, "gen_freq") == 0 || strcmp(r.key, "gen_van") == 0 ||
-           strcmp(r.key, "gen_vbn") == 0 || strcmp(r.key, "gen_vcn") == 0 ||
-           strcmp(r.key, "gen_ia") == 0 || strcmp(r.key, "gen_ib") == 0 ||
-           strcmp(r.key, "gen_ic") == 0 || strcmp(r.key, "gen_p_tot") == 0 ||
-           strcmp(r.key, "gen_pf") == 0 || strcmp(r.key, "gen_pct_kw") == 0 ||
-           strcmp(r.key, "oil_press") == 0 ||
+    return strcmp(r.key, "battery_v") == 0 || strcmp(r.key, "charge_alt_v") == 0 ||
+           strcmp(r.key, "eng_rpm") == 0 || strcmp(r.key, "eng_status") == 0 ||
+           strcmp(r.key, "op_mode") == 0 || strcmp(r.key, "gen_freq") == 0 ||
+           strcmp(r.key, "gen_van") == 0 || strcmp(r.key, "gen_vbn") == 0 ||
+           strcmp(r.key, "gen_vcn") == 0 || strcmp(r.key, "gen_ia") == 0 ||
+           strcmp(r.key, "gen_ib") == 0 || strcmp(r.key, "gen_ic") == 0 ||
+           strcmp(r.key, "gen_p_tot") == 0 || strcmp(r.key, "gen_pf") == 0 ||
+           strcmp(r.key, "gen_pct_kw") == 0 || strcmp(r.key, "oil_press") == 0 ||
            strcmp(r.key, "coolant_temp") == 0 ||
-           strcmp(r.key, "fuel_level") == 0;
+           strcmp(r.key, "fuel_level") == 0 || strcmp(r.key, "mains_freq") == 0 ||
+           strcmp(r.key, "mains_van") == 0;
   };
 
   Serial.print(F("## DSE poll ("));

@@ -1,0 +1,484 @@
+{
+  "controller_name": "DeepSea Controller",
+  "information":"This has been tested with the 7320MKII",
+  "rated_max_output_power_kw": "Unknown",
+  "rated_nominal_voltage": "Unknown",
+  "rated_nominal_rpm" : "Unknown",
+  "rated_nominal_freq" : "Unknown",
+  "nominal_battery_voltage" : "Unknown",
+  "generator_phase": "Unknown",
+  "register_format_info":"The high byte of the modbus register is the page and low byte is the offset",
+  "holding_registers": {
+      "0006": {"length": 2, "text": "Password Status", "comment":"page 0 = Communication Status, TODO"},
+      "0080": {"length": 4, "text": "Generator Status", "comment": "TODO"},
+      "008b": {"length": 4, "text": "UNK1", "comment": "page 1 = Communication Config"},
+      "0102": {"length": 2, "text": "Device Identity", "comment": "TODO"},
+      "0300": {"length": 2, "text": "Mfg Code", "comment":"page 3 = Generating set status information "},
+      "0301": {"length": 2, "text": "Model Number", "comment":""},
+      "0302": {"length": 4, "text": "Serial Number", "comment":""},
+      "0304": {"length": 2, "text": "Switch State"},
+      "0306": {"length": 2, "text": "Control Unit Status", "comment": "TODO"},
+      "031b": {"length": 2, "text": "Battery Charger Status", "comment": "TODO"},
+      "0311": {"length": 2, "text": "Battery Charger Stages", "comment": "TODO"},
+      "0400": {"length": 2, "text": "Oil Pressure", "comment": "kPa, page 4 = Basic instrumentation "},
+      "0401": {"length": 2, "text": "Coolant Temperature", "comment": "signed, -50C to 200C"},
+      "0402": {"length": 2, "text": "Oil Temperature", "comment": "signed, -50C to 200C"},
+      "0403": {"length": 2, "text": "Fuel Level", "comment": "percentage, 0 - 130"},
+      "0404": {"length": 2, "text": "Charger Alternator Voltage", "comment": "0V-40V"},
+      "0405": {"length": 2, "text": "Battery Voltage"},
+      "0406": {"length": 2, "text": "RPM"},
+      "0407": {"length": 2, "text": "Frequency"},
+      "0408": {"length": 4, "text": "Output Voltage", "comment": "L1 to N"},
+      "040a": {"length": 4, "text": "Output Voltage L2", "comment": "L2 to N"},
+      "040c": {"length": 4, "text": "Output Voltage L3", "comment": "L3 to N"},
+      "040e": {"length": 4, "text": "Output Voltage L1 - L2", "comment": "L1 to L2"},
+      "0410": {"length": 4, "text": "Output Voltage L2 - L3", "comment": "L2 to L3"},
+      "0412": {"length": 4, "text": "Output Voltage L3 - L1", "comment": "L3 to L1"},
+      "0414": {"length": 4, "text": "Output Current", "comment": "L1"},
+      "0416": {"length": 4, "text": "Output Current L2", "comment": "L2"},
+      "0418": {"length": 4, "text": "Output Current L3", "comment": "L3"},
+      "041a": {"length": 4, "text": "Output Power L1", "comment": "L1, Watts, signed"},
+      "041c": {"length": 4, "text": "Output Power L2", "comment": "L2, Watts, signed"},
+      "041e": {"length": 4, "text": "Output Power L3", "comment": "L3, Watts, signed"},
+      "0423": {"length": 2, "text": "Utility Frequency"},
+      "0424": {"length": 2, "text": "Utility Voltage", "comment": "L1, NOTE: The docs say this should be 32 bits"},
+      "0425": {"length": 2, "text": "Utility Voltage Test", "comment": ", NOTE: The docs say this should be 32 bits"},
+      "0426": {"length": 4, "text": "Utility Voltage L2", "comment": "L2"},
+      "0428": {"length": 4, "text": "Utility Voltage L3", "comment": "L3"},
+      "04e8": {"length": 4, "text": "Battery Charger Output Current", "comment": "Signed, mA"},
+      "04ea": {"length": 4, "text": "Battery Charger Output Voltage", "comment": "Signed, mV"},
+      "054d": {"length": 2, "text": "Oil Level", "comment": "% 0 - 100, page 5 = Extended Instrumentation"},
+      "054f": {"length": 2, "text": "Coolant Level", "comment": "% 0 - 100"},
+      "0580": {"length": 2, "text": "Engine Operating State", "comment": ""},
+      "058a": {"length": 2, "text": "Engine State (alt)", "comment": ""},
+      "0600": {"length": 4, "text": "Output Power", "comment":"page 6 = Derived Instrumentation"},
+      "0706": {"length": 4, "text": "Run Hours", "comment":"page 7 = Accumulated Instrumentation "},
+      "0800": {"length": 2, "text": "Number of Named Alarms (old)", "comment":"page 8 = Alarm Conditions (old method)"},
+      "9900": {"length": 2, "text": "Unnamed Alarm Conditions", "comment": "0x99=page 153 - Unnamed Alarm Conditions"},
+      "9a00": {"length": 2, "text": "Named Alarm Conditions", "comment":"0x9a = 154 decimal,Named Alarm Conditions "},
+      "9a01": {"length": 4, "text": "Alarm Bits 1"},
+      "9a03": {"length": 4, "text": "Alarm Bits 2"},
+      "9a05": {"length": 4, "text": "Alarm Bits 3", "comment": "TODO not implemented"},
+      "9a07": {"length": 4, "text": "Alarm Bits 4", "comment": "TODO not implemented"},
+      "9a09": {"length": 4, "text": "Alarm Bits 5", "comment": "TODO not implemented"},
+      "9a0a": {"length": 4, "text": "Alarm Bits 6", "comment": "TODO not implemented"},
+      "9a0c": {"length": 4, "text": "Alarm Bits 7", "comment": "TODO not implemented"},
+      "9a0e": {"length": 4, "text": "Alarm Bits 8", "comment": "TODO not implemented"},
+      "9a10": {"length": 4, "text": "Alarm Bits 9", "comment": "TODO not implemented"},
+      "9a12": {"length": 4, "text": "Alarm Bits 10", "comment": "TODO not implemented"},
+      "9a14": {"length": 4, "text": "Alarm Bits 11", "comment": "TODO, these and beyond are for the 8xxx family"}
+  },
+  "include":{
+      "alarm_check":{
+        "value": "1",
+        "mask": "000f",
+        "type": "regex",
+        "regex": "^[2-59a]$",
+        "title": "Alarm",
+        "comment": "This will return active if the values are 2-5, 9 or a (hex)",
+        "comment2": "These are displayable active alarm conditions"  
+      }
+  },
+  "switch_state": [
+    {
+      "reg": "0304",
+      "type": "object_int_index",
+      "title": "Switch State",
+      "default": "Unknown",
+      "mask": "ffff",
+      "object": {
+        "0": "Stopped",
+        "1": "Auto",
+        "2": "Manual",
+        "3": "Test with Load",
+        "4": "Auto with manual restore mode/Prohibit Return",
+        "5": "User Configuration Mode",
+        "6": "Test Off Load Mode",
+        "7": "Off"
+      }
+    }
+  ],
+  "alarm_conditions": [
+      {
+        "reg": "9a01",
+        "shiftright": 0,
+        "include": "alarm_check",
+        "text": "Low Coolant Temperature"
+      },
+      {
+        "reg": "9a01",
+        "shiftright": 4,
+        "include": "alarm_check",
+        "text": "High Coolant Temperature"
+      },
+      {
+        "reg": "9a01",
+        "shiftright": 8,
+        "include": "alarm_check",
+        "text": "Low Oil Pressure"
+      },
+      {
+        "reg": "9a01",
+        "shiftright": 12,
+        "include": "alarm_check",
+        "text": "Emergency Stop"
+      },
+      {
+        "reg": "9a01",
+        "shiftright": 16,
+        "include": "alarm_check",
+        "text": "Generator Over Frequency"
+      },
+      {
+        "reg": "9a01",
+        "shiftright": 20,
+        "include": "alarm_check",
+        "text": "Generator Under Frequency"
+      },
+      {
+        "reg": "9a01",
+        "shiftright": 24,
+        "include": "alarm_check",
+        "text": "Generator Over Speed"
+      },
+      {
+        "reg": "9a01",
+        "shiftright": 28,
+        "include": "alarm_check",
+        "text": "Generator Under Speed"
+      },
+      {
+          "reg": "9a03",
+          "shiftright": 0,
+          "include": "alarm_check",
+          "text": "High Battery Voltage"
+      },
+      {
+          "reg": "9a03",
+          "shiftright": 4,
+          "include": "alarm_check",
+          "text": "Low Battery Voltage"
+      },
+      {
+          "reg": "9a03",
+          "shiftright": 8,
+          "include": "alarm_check",
+          "text": "Generator High Voltage"
+      },
+      {
+          "reg": "9a03",
+          "shiftright": 12,
+          "include": "alarm_check",
+          "text": "Generator Low Voltage"
+      },
+      {
+          "reg": "9a03",
+          "shiftright": 16,
+          "include": "alarm_check",
+          "text": "Generator Fail to Close"
+      },
+      {
+          "reg": "9a03",
+          "shiftright": 20,
+          "include": "alarm_check",
+          "text": "Fail to Stop"
+      },
+      {
+          "reg": "9a03",
+          "shiftright": 24,
+          "include": "alarm_check",
+          "text": "Fail to Start"
+      },
+      {
+          "reg": "9a03",
+          "shiftright": 28,
+          "include": "alarm_check",
+          "text": "Charge Alternator Failure"
+      },
+      {
+          "reg": "9a00",
+          "mask": "01ff",
+          "value": "1",
+          "type": "regex",
+          "regex": "^1[e-f]|[2-9a-f][0-9a-f]|100$",
+          "title": "Alarm",
+          "text": "Unknown Alarm"
+      }
+  ],
+  "generator_status" : [
+    {
+        "reg": "0080",
+        "mask": "000f0000",
+        "value": "2",
+        "type": "bits",
+        "title": "Engine State",
+        "text": "Exercising"
+    }
+  ],
+  "engine_state": [
+      {
+          "reg": "0080",
+          "mask": "000f0000",
+          "value": "2",
+          "type": "bits",
+          "title": "Engine State",
+          "text": "Exercising"
+      },
+      {
+          "reg": "0080",
+          "mask": "000f0000",
+          "value": "5",
+          "type": "bits",
+          "title": "Engine State",
+          "text": "Stopped"
+      },
+      {
+          "reg": "0080",
+          "mask": "000f0000",
+          "value": "4",
+          "type": "bits",
+          "title": "Engine State",
+          "text": "Cooling Down"
+      },
+      {
+          "reg": "0080",
+          "mask": "000f0000",
+          "value": "3",
+          "type": "bits",
+          "title": "Engine State",
+          "text": "Running"
+      },
+      {
+          "reg": "0080",
+          "mask": "000f0000",
+          "value": "5",
+          "type": "bits",
+          "title": "Engine State",
+          "text": "Stopped In Alarm"
+      }
+  ],
+  "status" : [
+    {
+        "reg": "0408",
+        "mask": "ffff",
+        "multiplier": 1,
+        "type": "int",
+        "title": "Output Voltage",
+        "units": "V"
+    },
+    {
+        "reg": "0407",
+        "mask": "ffff",
+        "multiplier": 1,
+        "type": "int",
+        "title": "Frequency",
+        "units": "Hz"
+    },
+    {
+        "reg": "0405",
+        "mask": "ffff",
+        "multiplier": 0.1,
+        "type": "float",
+        "title": "Battery Voltage",
+        "units": "V"
+    },
+    {
+        "reg": "0424",
+        "mask": "ffff",
+        "multiplier": 1,
+        "type": "int",
+        "title": "Utility Voltage",
+        "units": "V"
+    }
+  ],
+  "maintenance": [
+        {
+            "reg": "0706",
+            "mask": "ffffffff",
+            "multiplier": 1,
+            "type": "int",
+            "title": "Run Hours",
+            "units": "h"
+          }
+
+      ],
+  "gauges": [
+    {
+        "reg": "0405",
+        "mask": "ffff",
+        "multiplier": 0.1,
+        "type": "float",
+        "title": "Battery Voltage",
+        "units": "V",
+        "sensor": "batteryvolts",
+        "nominal": 24,
+        "values": [0, 8, 10, 34, 36, 44],
+        "maximum": 44
+    },
+    {
+        "reg": "0424",
+        "mask": "ffff",
+        "multiplier": 1,
+        "type": "int",
+        "title": "Utility Voltage",
+        "units": "V",
+        "sensor": "linevolts",
+        "nominal": 240
+    },
+    {
+        "reg": "0408",
+        "mask": "ffff",
+        "multiplier": 1,
+        "type": "int",
+        "title": "Output Voltage",
+        "units": "V",
+        "sensor": "linevolts",
+        "nominal": 240
+    },
+    {
+        "reg": "0407",
+        "mask": "ffff",
+        "multiplier": 0.01,
+        "type": "float",
+        "title": "Frequency",
+        "units": "Hz",
+        "sensor": "frequency",
+        "nominal": 60
+    },
+    {
+        "reg": "0406",
+        "mask": "ffff",
+        "multiplier": 1,
+        "type": "int",
+        "title": "RPM",
+        "units": null,
+        "sensor": "rpm",
+        "nominal": 1800
+    },
+    {
+        "reg": "0600",
+        "mask": "ffff",
+        "multiplier": 0.001,
+        "type": "float",
+        "title": "Power",
+        "units": "kW",
+        "sensor": "powergraph",
+        "nominal": 22
+    }
+  ],
+  "buttons" : [
+    {
+        "onewordcommand" : "stop",
+        "title" : "Stop Mode",
+        "command_sequence" : [
+                               {
+                                 "reg": "1008",
+                                 "value": ["8B", "74", "74", "8b"]
+                               }
+                             ]
+    },
+    {
+        "onewordcommand" : "auto",
+        "title" : "Auto Mode",
+        "command_sequence" : [
+                               {
+                                 "reg": "1008",
+                                 "value": ["8b", "75", "74", "8a"]
+                               }
+                             ]
+    },
+    {
+        "onewordcommand" : "manual",
+        "title" : "Manual Mode",
+        "command_sequence" : [
+                               {
+                                 "reg": "1008",
+                                 "value": ["8b", "76", "74", "89"]
+                               }
+                             ]
+    },
+    {
+        "onewordcommand" : "mutealarm",
+        "title" : "Mute Alarm",
+        "command_sequence" : [
+                               {
+                                 "reg": "1008",
+                                 "value":["8b", "7a", "74", "85"]
+                               }
+                             ]
+    },
+    {
+        "onewordcommand" : "test",
+        "title" : "Test On Load Mode",
+        "command_sequence" : [
+                               {
+                                 "reg": "1008",
+                                 "value": ["8b", "77", "74", "88"]
+                               }
+                             ]
+    },
+    {
+        "onewordcommand" : "startest",
+        "title" : "Start Engine(For Test or Manual Mode)",
+        "command_sequence" : [
+                               {
+                                 "reg": "1008",
+                                 "value": ["8b", "79", "74", "86"]
+                               }
+                             ]
+    },
+    {
+        "onewordcommand" : "resetmaint",
+        "title" : "Reset the Maintenance Alarm 1",
+        "command_sequence" : [
+                               {
+                                 "reg": "1008",
+                                 "value": ["8b", "9a", "74", "65"]
+                               }
+                             ]
+    }
+  ],
+  "power": {
+        "reg": "0600",
+        "mask": "ffff",
+        "multiplier": 0.001,
+        "type": "float",
+        "title": "Power Output",
+        "units": "kW"
+    },
+  "fuel": {
+        "reg": "0403",
+        "mask": "ffff",
+        "multiplier": 1,
+        "type": "int",
+        "title": "Fuel Sensor",
+        "units": "%"
+    },
+  "outputvoltage": {
+      "reg": "0408",
+      "mask": "ffff",
+      "multiplier": 1,
+      "type": "int",
+      "title": "Output Voltage",
+      "units": "V"
+    },
+  "linevoltage": {
+      "reg": "0424",
+      "mask": "ffff",
+      "multiplier": 1,
+      "type": "int",
+      "title": "Utility Voltage",
+      "units": "V",
+      "sensor": "linevolts"
+    },
+  "run_hours": {
+        "reg": "0706",
+        "mask": "ffffffff",
+        "multiplier": 1,
+        "type": "int",
+        "title": "Run Hours",
+        "units": "h"
+    },
+  "thresholdvoltage": 143,
+  "pickupvoltage": 190
+}

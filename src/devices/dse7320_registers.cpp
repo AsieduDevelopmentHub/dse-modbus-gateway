@@ -31,17 +31,38 @@ const DseRegister kMap[] = {
 
     // --- Generator / controller state ---
     {772, DseDataWidth::Int16, DseDecodeKind::EnumOpMode, false, 1.0f, "op_mode",
-     "Operating Mode", "", 0},
+     "Operating Mode / Switch State", "", 0},
+    {774, DseDataWidth::Int16, DseDecodeKind::IdentityU16, false, 1.0f,
+     "ctrl_status", "Control Unit Status", "", 0},
+    {785, DseDataWidth::Int16, DseDecodeKind::IdentityU16, false, 1.0f,
+     "chg_stages", "Battery Charger Stages", "", 0},
+    {795, DseDataWidth::Int16, DseDecodeKind::IdentityU16, false, 1.0f,
+     "chg_status", "Battery Charger Status", "", 0},
     {1408, DseDataWidth::Int16, DseDecodeKind::EnumEngStatus, false, 1.0f,
-     "eng_status", "Engine Status Code", "", 0},
+     "eng_status", "Engine Operating State", "", 0},
+    {1418, DseDataWidth::Int16, DseDecodeKind::EnumEngStatus, false, 1.0f,
+     "eng_status_alt", "Engine State (alt)", "", 0},
+
+    // --- Comm / misc status (7320MKII clone JSON) ---
+    {6, DseDataWidth::Int16, DseDecodeKind::IdentityU16, false, 1.0f,
+     "password_status", "Password Status", "", 0},
+    {128, DseDataWidth::Int32, DseDecodeKind::Bitmask, false, 1.0f, "gen_status",
+     "Generator Status (packed)", "", 0},
+    {258, DseDataWidth::Int16, DseDecodeKind::IdentityU16, false, 1.0f,
+     "device_ident", "Device Identity", "", 0},
 
     // --- Engine / mechanical ---
     R16U(1024, 1.0f, "oil_press", "Oil Pressure", "kPa", 0),
     R16S(1025, 1.0f, "coolant_temp", "Coolant Temperature", "C", 0),
     R16S(1026, 1.0f, "oil_temp", "Oil Temperature", "C", 0),
     R16U(1027, 1.0f, "fuel_level", "Fuel / Tank Level", "%", 0),
+    R16U(1028, 0.1f, "charge_alt_v", "Charger Alternator Voltage", "V", 0),
     R16U(1029, 0.1f, "battery_v", "Battery / Starter Voltage", "V", 167),
     R16U(1030, 1.0f, "eng_rpm", "Engine Speed", "rpm", 589),
+    R16U(1357, 1.0f, "oil_level", "Oil Level", "%", 0),
+    R16U(1359, 1.0f, "coolant_level", "Coolant Level", "%", 0),
+    R32S(1256, 0.001f, "chg_i_out", "Battery Charger Output Current", "A", 0),
+    R32S(1258, 0.001f, "chg_v_out", "Battery Charger Output Voltage", "V", 0),
 
     // --- AC electrical (S6 + GenComm) ---
     R16U(1031, 0.1f, "gen_freq", "Generator Average AC Frequency", "Hz", 2436),
@@ -63,6 +84,12 @@ const DseRegister kMap[] = {
     R32S(1052, 1.0f, "gen_pa", "Generator Phase A Real Power", "W", 2453),
     R32S(1054, 1.0f, "gen_pb", "Generator Phase B Real Power", "W", 2454),
     R32S(1056, 1.0f, "gen_pc", "Generator Phase C Real Power", "W", 2455),
+    // Utility / mains (page 4) — from 7320MKII clone JSON
+    R16U(1059, 0.1f, "mains_freq", "Utility / Mains Frequency", "Hz", 0),
+    R16U(1060, 0.1f, "mains_van", "Utility Voltage L1", "V", 0),
+    R16U(1061, 0.1f, "mains_van_test", "Utility Voltage L1 (test/alt)", "V", 0),
+    R32U(1062, 0.1f, "mains_vbn", "Utility Voltage L2", "V", 0),
+    R32U(1064, 0.1f, "mains_vcn", "Utility Voltage L3", "V", 0),
     R32U(1666, 0.1f, "gen_i_avg", "Generator Average AC RMS Current", "A",
          2448),
     R32S(1536, 1.0f, "gen_p_tot", "Generator Total Real Power", "W", 2452),
@@ -88,6 +115,14 @@ const DseRegister kMap[] = {
     R32U(1800, 0.1f, "gen_kwh_exp", "AC Energy Forward / kWh Export", "kWh",
          2468),
     R32U(1808, 1.0f, "eng_starts", "Engine Start Count", "", 0),
+
+    // --- Alarm page headers (7320MKII clone JSON) ---
+    {2048, DseDataWidth::Int16, DseDecodeKind::IdentityU16, false, 1.0f,
+     "alm_count_old", "Number of Named Alarms (old page 8)", "", 0},
+    {39168, DseDataWidth::Int16, DseDecodeKind::Bitmask, false, 1.0f,
+     "alm_unnamed", "Unnamed Alarm Conditions (page 153)", "", 0},
+    {39424, DseDataWidth::Int16, DseDecodeKind::IdentityU16, false, 1.0f,
+     "alm_named_count", "Named Alarm Conditions count (page 154)", "", 0},
 
     // --- SCF support flags (read); control writes are FC16 @4104/4105 ---
     {4096, DseDataWidth::Int16, DseDecodeKind::Bitmask, false, 1.0f, "scf_f0",
@@ -417,6 +452,8 @@ const char *opModeName(uint16_t code) {
       return "Test on Load";
     case 4:
       return "Auto+Manual Restore";
+    case 5:
+      return "User Configuration";
     case 6:
       return "Test off Load";
     case 7:

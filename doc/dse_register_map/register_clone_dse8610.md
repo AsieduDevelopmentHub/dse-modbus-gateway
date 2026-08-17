@@ -182,8 +182,9 @@ Both registers 4104 and 4105 **must be written in a single multi-register write 
 | 35735 | Clear telemetry alarm flag |
 | 35736 | Lock user controls |
 | 35737 | Unlock user controls |
+| 35738 | Reset maintenance alarm 1 due times |
 
-Firmware CLI names: `stop`, `auto`, `manual`, `test_on_load`, `auto_restore`, `start_engine`, `mute_alarm`, `reset_alarms`, `transfer_gen`, `transfer_mains`, `telemetry_start`, `telemetry_stop`, `reset_alarms2`, `clear_telem_alarm`, `lock_controls`, `unlock_controls`.
+Firmware CLI names: `stop`, `auto`, `manual`, `test_on_load`, `auto_restore`, `start_engine`, `mute_alarm`, `reset_alarms`, `transfer_gen`, `transfer_mains`, `telemetry_start`, `telemetry_stop`, `reset_alarms2`, `clear_telem_alarm`, `lock_controls`, `unlock_controls`, `reset_maint`.
 
 > **Note:** Always prefer `scf flags` first. Official GenComm may list additional keys; use `scf raw <key>` for undocumented codes.
 
