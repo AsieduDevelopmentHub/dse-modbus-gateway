@@ -3,12 +3,12 @@
 #include <Arduino.h>
 #include "config/config.h"
 
-// MAX485 direction control + HardwareSerial (UART1).
-// GPIO4 LOW  = Receive (RE/DE tied)
-// GPIO4 HIGH = Transmit
+// MAX485 + UART1 (HardwareSerial).
+// DE/RE GPIO4: HIGH=TX, LOW=RX (tied together on module).
 //
-// Physical note (Phase 2A): MAX485 module is powered from ESP32-C3 3.3V.
-// Do not claim automatic electrical safety/compatibility beyond that setup.
+// HARDWARE RISK (documented, not changed here):
+// - MAX485 module powered from ESP32-C3 3.3V
+// - GPIO20/21 are also ESP32-C3 default UART0 pins
 
 class Rs485Bus {
 public:
@@ -18,11 +18,16 @@ public:
 
   void setTransmitMode();
   void setReceiveMode();
+  int deReLevel() const;  // digitalRead of DE/RE pin
 
   HardwareSerial &serial();
   void flushRx();
-  // Drain RX FIFO; returns count discarded. Optionally fills outBuf.
   size_t flushRxCounted(uint8_t *outBuf = nullptr, size_t outMax = 0);
+
+  // TX with DE high, hardware TX-done wait, then DE low.
+  // Returns bytes accepted by write(); sets outTxCompleteUs.
+  size_t transmit(const uint8_t *data, size_t len, uint32_t *outTxStartUs,
+                  uint32_t *outTxCompleteUs, uint32_t *outDeLowUs);
 
   uint32_t baud() const { return _baud; }
   uint8_t dataBits() const { return _dataBits; }

@@ -24,6 +24,7 @@ struct ModbusResponse {
   uint8_t valueCount = 0;
   uint8_t rawRx[64] = {};
   size_t rawRxLen = 0;
+  uint32_t txnId = 0;
 };
 
 struct ModbusTxnInfo {
@@ -37,15 +38,35 @@ struct ModbusTxnInfo {
   uint16_t quantity = 0;
 };
 
+struct RawRs485Capture {
+  uint8_t tx[16] = {};
+  size_t txLen = 0;
+  size_t txWritten = 0;
+  uint8_t rx[64] = {};
+  size_t rxLen = 0;
+  uint32_t txnId = 0;
+  uint32_t tTxStartUs = 0;
+  uint32_t tTxCompleteUs = 0;
+  uint32_t tDeLowUs = 0;
+  uint32_t tFirstRxMs = 0;
+  uint32_t elapsedMs = 0;
+  int deBefore = 0;
+  int deAfter = 0;
+};
+
 class ModbusClient {
 public:
   void begin();
 
   void setDiagnostic(bool enabled);
   bool diagnostic() const { return _diagnostic; }
+  uint32_t nextTxnId() { return ++_txnId; }
 
-  // Offline CRC vectors — no RS485 required.
   bool runCrcSelfTest();
+
+  // Build FC03/04 request, TX, capture raw RX only (no Modbus parse).
+  RawRs485Capture rawCapture(uint8_t slaveId, uint8_t functionCode,
+                             uint16_t address, uint16_t quantity);
 
   ModbusResponse readHoldingRegisters(uint8_t slaveId, uint16_t address,
                                       uint16_t quantity,
@@ -59,6 +80,9 @@ public:
                                uint16_t address, uint16_t quantity,
                                const ModbusTxnInfo *info = nullptr);
 
+  // Validate CRC on an already-captured buffer (for rs485raw follow-up).
+  void printCrcAudit(const uint8_t *frame, size_t length);
+
 private:
   ModbusResponse transact(const uint8_t *request, size_t requestLen,
                           uint8_t expectedSlave, uint8_t expectedFc,
@@ -69,10 +93,13 @@ private:
   void printCrcCompare(const uint8_t *frame, size_t length);
   void printTimeoutDetail(bool txDone, bool deToRx, size_t rxLen,
                           uint32_t elapsedMs);
+  size_t collectRx(uint8_t *buf, size_t bufMax, uint32_t timeoutMs,
+                   uint32_t *outFirstByteMs);
   const char *exceptionName(uint8_t code);
   const char *resultName(ModbusResult r);
 
   bool _diagnostic = false;
+  uint32_t _txnId = 0;
 };
 
 extern ModbusClient modbus;

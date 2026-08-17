@@ -17,6 +17,8 @@ private:
   void handleLine(char *line);
   void cmdRead(char *args, bool hexAddress);
   void cmdRawRead(char *args);
+  void cmdRs485Raw(char *args);
+  void cmdRs485RawRepeat(char *args);
   void cmdSet(char *args);
   void cmdDevice(char *args);
   void cmdRepeat(char *args);

@@ -1,5 +1,7 @@
 #include "rs485/rs485.h"
 
+#include "driver/uart.h"
+
 Rs485Bus rs485;
 
 SerialConfig Rs485Bus::makeSerialConfig(uint8_t dataBits, uint8_t parity,
@@ -54,6 +56,10 @@ void Rs485Bus::setReceiveMode() {
   digitalWrite(RS485_DE_RE_PIN, LOW);
 }
 
+int Rs485Bus::deReLevel() const {
+  return digitalRead(RS485_DE_RE_PIN);
+}
+
 HardwareSerial &Rs485Bus::serial() {
   return _serial;
 }
@@ -72,4 +78,36 @@ size_t Rs485Bus::flushRxCounted(uint8_t *outBuf, size_t outMax) {
     n++;
   }
   return n;
+}
+
+size_t Rs485Bus::transmit(const uint8_t *data, size_t len,
+                          uint32_t *outTxStartUs, uint32_t *outTxCompleteUs,
+                          uint32_t *outDeLowUs) {
+  setTransmitMode();
+  const uint32_t t0 = micros();
+  if (outTxStartUs) {
+    *outTxStartUs = t0;
+  }
+
+  const size_t written = _serial.write(data, len);
+  _serial.flush();  // Arduino: wait until TX FIFO drained
+
+  // ESP-IDF: wait until shift register finished last stop bit.
+  uart_wait_tx_done(static_cast<uart_port_t>(RS485_UART_NUM),
+                    pdMS_TO_TICKS(100));
+
+  delayMicroseconds(RS485_TX_SETTLE_US);
+
+  const uint32_t t1 = micros();
+  if (outTxCompleteUs) {
+    *outTxCompleteUs = t1;
+  }
+
+  setReceiveMode();
+  const uint32_t t2 = micros();
+  if (outDeLowUs) {
+    *outDeLowUs = t2;
+  }
+
+  return written;
 }

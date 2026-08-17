@@ -6,6 +6,7 @@
 #include "config/config.h"
 #include "devices/modbus_device.h"
 #include "modbus/modbus_client.h"
+#include "modbus/modbus_crc.h"
 #include "rs485/rs485.h"
 
 Cli cli;
@@ -64,18 +65,19 @@ void Cli::printHelp() {
   Serial.println(F("  devices | device list|show|select <key>"));
   Serial.println(F("  read <addr> <qty> | readhex <hex> <qty>"));
   Serial.println(F("  rawread <slave> <fc> <hex_addr> <qty>"));
+  Serial.println(F("  rs485raw <slave> <fc> <hex_addr> <qty>"));
+  Serial.println(F("  rs485raw-repeat <n> <slave> <fc> <hex_addr> <qty>"));
   Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
   Serial.println(F("  crc-test"));
   Serial.println(F("  diagnostic on|off"));
   Serial.println(F("  repeat <n> <slave> <fc> <hex_addr> <qty>"));
   Serial.println();
-  Serial.println(F("Phase 2A probe (no register map assumed):"));
-  Serial.println(F("  device select et1641"));
-  Serial.println(F("  crc-test"));
+  Serial.println(F("Audit probe:"));
   Serial.println(F("  diagnostic on"));
-  Serial.println(F("  rawread 50 04 0000 1"));
-  Serial.println(F("  rawread 50 03 0000 1"));
-  Serial.println(F("  repeat 20 50 04 0000 1"));
+  Serial.println(F("  crc-test"));
+  Serial.println(F("  rs485raw 50 04 0000 1"));
+  Serial.println(F("  rs485raw 50 03 0000 1"));
+  Serial.println(F("  rs485raw-repeat 20 50 04 0000 1"));
 }
 
 void Cli::printStatus() {
@@ -256,10 +258,31 @@ void Cli::cmdRawRead(char *args) {
     Serial.println(F("Usage: rawread <slave> <fc> <hex_addr> <qty>"));
     return;
   }
+  if (modbus.diagnostic()) {
+    Serial.println(F("RAW COMMAND TOKENS (rawread):"));
+    Serial.print(F("TOKEN 0: "));
+    Serial.println(slaveStr);
+    Serial.print(F("TOKEN 1: "));
+    Serial.println(fcStr);
+    Serial.print(F("TOKEN 2: "));
+    Serial.println(addrStr);
+    Serial.print(F("TOKEN 3: "));
+    Serial.println(qtyStr);
+  }
   const long slave = strtol(slaveStr, nullptr, 0);
   const long fc = strtol(fcStr, nullptr, 16);
   const long address = strtol(addrStr, nullptr, 16);
   const long quantity = strtol(qtyStr, nullptr, 10);
+  if (modbus.diagnostic()) {
+    Serial.print(F("PARSED: slave="));
+    Serial.print(slave);
+    Serial.print(F(" function="));
+    Serial.print(fc, HEX);
+    Serial.print(F(" address="));
+    Serial.print(address, HEX);
+    Serial.print(F(" quantity="));
+    Serial.println(quantity);
+  }
   if (slave < 1 || slave > 247 || (fc != 0x03 && fc != 0x04) ||
       address < 0 || address > 0xFFFF || quantity < 1 || quantity > 32) {
     Serial.println(F("ERROR: bad rawread args"));
@@ -270,6 +293,97 @@ void Cli::cmdRawRead(char *args) {
   modbus.readRegisters(static_cast<uint8_t>(slave), static_cast<uint8_t>(fc),
                        static_cast<uint16_t>(address),
                        static_cast<uint16_t>(quantity), &info);
+}
+
+void Cli::cmdRs485Raw(char *args) {
+  char *slaveStr = strtok(args, " \t");
+  char *fcStr = strtok(nullptr, " \t");
+  char *addrStr = strtok(nullptr, " \t");
+  char *qtyStr = strtok(nullptr, " \t");
+  if (!slaveStr || !fcStr || !addrStr || !qtyStr) {
+    Serial.println(F("Usage: rs485raw <slave> <fc> <hex_addr> <qty>"));
+    return;
+  }
+  const long slave = strtol(slaveStr, nullptr, 0);
+  const long fc = strtol(fcStr, nullptr, 16);
+  const long address = strtol(addrStr, nullptr, 16);
+  const long quantity = strtol(qtyStr, nullptr, 10);
+  if (slave < 1 || slave > 247 || (fc != 0x03 && fc != 0x04) ||
+      address < 0 || address > 0xFFFF || quantity < 1 || quantity > 32) {
+    Serial.println(F("ERROR: bad rs485raw args"));
+    return;
+  }
+  modbus.rawCapture(static_cast<uint8_t>(slave), static_cast<uint8_t>(fc),
+                    static_cast<uint16_t>(address),
+                    static_cast<uint16_t>(quantity));
+}
+
+void Cli::cmdRs485RawRepeat(char *args) {
+  char *nStr = strtok(args, " \t");
+  char *slaveStr = strtok(nullptr, " \t");
+  char *fcStr = strtok(nullptr, " \t");
+  char *addrStr = strtok(nullptr, " \t");
+  char *qtyStr = strtok(nullptr, " \t");
+  if (!nStr || !slaveStr || !fcStr || !addrStr || !qtyStr) {
+    Serial.println(
+        F("Usage: rs485raw-repeat <n> <slave> <fc> <hex_addr> <qty>"));
+    return;
+  }
+  const long n = strtol(nStr, nullptr, 10);
+  const long slave = strtol(slaveStr, nullptr, 0);
+  const long fc = strtol(fcStr, nullptr, 16);
+  const long address = strtol(addrStr, nullptr, 16);
+  const long quantity = strtol(qtyStr, nullptr, 10);
+  if (n < 1 || n > 100 || slave < 1 || slave > 247 ||
+      (fc != 0x03 && fc != 0x04) || address < 0 || address > 0xFFFF ||
+      quantity < 1 || quantity > 32) {
+    Serial.println(F("ERROR: bad rs485raw-repeat args"));
+    return;
+  }
+
+  uint16_t zero = 0, five = 0, other = 0, crcOk = 0, crcBad = 0;
+  for (long i = 0; i < n; i++) {
+    Serial.print(F("--- rs485raw-repeat "));
+    Serial.print(i + 1);
+    Serial.print('/');
+    Serial.println(n);
+    const RawRs485Capture cap = modbus.rawCapture(
+        static_cast<uint8_t>(slave), static_cast<uint8_t>(fc),
+        static_cast<uint16_t>(address), static_cast<uint16_t>(quantity));
+    if (cap.rxLen == 0) {
+      zero++;
+    } else if (cap.rxLen == 5) {
+      five++;
+      if (modbusCrcOk(cap.rx, 5)) {
+        crcOk++;
+      } else {
+        crcBad++;
+      }
+    } else {
+      other++;
+      if (cap.rxLen >= 4 && modbusCrcOk(cap.rx, cap.rxLen)) {
+        crcOk++;
+      } else {
+        crcBad++;
+      }
+    }
+    delay(50);
+  }
+
+  Serial.println();
+  Serial.println(F("## RS485 RAW REPEAT SUMMARY"));
+  Serial.print(F("Attempts: "));
+  Serial.println(n);
+  Serial.print(F("0-byte timeout: "));
+  Serial.println(zero);
+  Serial.print(F("5-byte response: "));
+  Serial.println(five);
+  Serial.print(F("other-length response: "));
+  Serial.println(other);
+  Serial.print(F("CRC valid: "));
+  Serial.println(crcOk);
+  Serial.print(F("CRC invalid: "));
+  Serial.println(crcBad);
 }
 
 void Cli::cmdRepeat(char *args) {
@@ -376,6 +490,17 @@ void Cli::handleLine(char *line) {
     rest = empty;
   }
 
+  if (modbus.diagnostic()) {
+    Serial.print(F("RAW COMMAND: "));
+    Serial.println(line);
+    Serial.print(F("TOKEN CMD: "));
+    Serial.println(cmd);
+    if (rest[0]) {
+      Serial.print(F("TOKEN REST: "));
+      Serial.println(rest);
+    }
+  }
+
   if (strcasecmp(cmd, "help") == 0 || strcasecmp(cmd, "?") == 0) {
     printHelp();
   } else if (strcasecmp(cmd, "status") == 0) {
@@ -392,6 +517,10 @@ void Cli::handleLine(char *line) {
     cmdRead(rest, true);
   } else if (strcasecmp(cmd, "rawread") == 0) {
     cmdRawRead(rest);
+  } else if (strcasecmp(cmd, "rs485raw") == 0) {
+    cmdRs485Raw(rest);
+  } else if (strcasecmp(cmd, "rs485raw-repeat") == 0) {
+    cmdRs485RawRepeat(rest);
   } else if (strcasecmp(cmd, "set") == 0) {
     cmdSet(rest);
   } else if (strcasecmp(cmd, "crc-test") == 0 ||
