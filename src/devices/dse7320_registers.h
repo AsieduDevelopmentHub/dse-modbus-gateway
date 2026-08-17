@@ -70,6 +70,13 @@ void annotateRead(uint16_t address, uint16_t quantity, const uint16_t *values,
 
 void printAlarmActive(uint16_t address, uint16_t raw);
 
+// Human-readable label for iterate output (e.g. "Line 1 voltage").
+const char *friendlyLabel(const DseRegister &reg);
+
+// Decode/print all known map entries covered by a batch FC03 reply.
+void printBatchReadable(uint16_t batchStart, const uint16_t *values,
+                        uint8_t valueCount);
+
 // Alarm nibble helpers (register must be AlarmPacked).
 const char *alarmSlotName(uint16_t address, uint8_t slot0to3);
 const char *alarmStateName(uint8_t nibble);

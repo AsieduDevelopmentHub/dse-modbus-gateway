@@ -679,4 +679,179 @@ void printAlarmActive(uint16_t address, uint16_t raw) {
   printAlarmPacked(address, raw, true);
 }
 
+const char *friendlyLabel(const DseRegister &reg) {
+  if (strcmp(reg.key, "gen_van") == 0) {
+    return "Line 1 voltage";
+  }
+  if (strcmp(reg.key, "gen_vbn") == 0) {
+    return "Line 2 voltage";
+  }
+  if (strcmp(reg.key, "gen_vcn") == 0) {
+    return "Line 3 voltage";
+  }
+  if (strcmp(reg.key, "gen_vab") == 0) {
+    return "Line 1-2 voltage";
+  }
+  if (strcmp(reg.key, "gen_vbc") == 0) {
+    return "Line 2-3 voltage";
+  }
+  if (strcmp(reg.key, "gen_vca") == 0) {
+    return "Line 3-1 voltage";
+  }
+  if (strcmp(reg.key, "gen_ia") == 0) {
+    return "Line 1 current";
+  }
+  if (strcmp(reg.key, "gen_ib") == 0) {
+    return "Line 2 current";
+  }
+  if (strcmp(reg.key, "gen_ic") == 0) {
+    return "Line 3 current";
+  }
+  if (strcmp(reg.key, "gen_freq") == 0) {
+    return "Frequency";
+  }
+  if (strcmp(reg.key, "battery_v") == 0) {
+    return "Battery voltage";
+  }
+  if (strcmp(reg.key, "charge_alt_v") == 0) {
+    return "Charge alternator voltage";
+  }
+  if (strcmp(reg.key, "eng_rpm") == 0) {
+    return "Engine RPM";
+  }
+  if (strcmp(reg.key, "oil_press") == 0) {
+    return "Oil pressure";
+  }
+  if (strcmp(reg.key, "coolant_temp") == 0) {
+    return "Coolant temperature";
+  }
+  if (strcmp(reg.key, "oil_temp") == 0) {
+    return "Oil temperature";
+  }
+  if (strcmp(reg.key, "fuel_level") == 0) {
+    return "Fuel level";
+  }
+  if (strcmp(reg.key, "gen_pa") == 0) {
+    return "Line 1 power";
+  }
+  if (strcmp(reg.key, "gen_pb") == 0) {
+    return "Line 2 power";
+  }
+  if (strcmp(reg.key, "gen_pc") == 0) {
+    return "Line 3 power";
+  }
+  if (strcmp(reg.key, "gen_p_tot") == 0) {
+    return "Total real power";
+  }
+  if (strcmp(reg.key, "gen_q_tot") == 0) {
+    return "Total reactive power";
+  }
+  if (strcmp(reg.key, "gen_s_tot") == 0) {
+    return "Total apparent power";
+  }
+  if (strcmp(reg.key, "gen_pf") == 0) {
+    return "Power factor";
+  }
+  if (strcmp(reg.key, "gen_pct_kw") == 0) {
+    return "Load percent";
+  }
+  if (strcmp(reg.key, "mains_freq") == 0) {
+    return "Mains frequency";
+  }
+  if (strcmp(reg.key, "mains_van") == 0) {
+    return "Mains L1 voltage";
+  }
+  if (strcmp(reg.key, "mains_vbn") == 0) {
+    return "Mains L2 voltage";
+  }
+  if (strcmp(reg.key, "mains_vcn") == 0) {
+    return "Mains L3 voltage";
+  }
+  if (strcmp(reg.key, "eng_hours") == 0) {
+    return "Engine hours";
+  }
+  if (strcmp(reg.key, "eng_starts") == 0) {
+    return "Engine starts";
+  }
+  if (strcmp(reg.key, "gen_kwh_exp") == 0) {
+    return "Energy export";
+  }
+  if (strcmp(reg.key, "op_mode") == 0) {
+    return "Operating mode";
+  }
+  if (strcmp(reg.key, "eng_status") == 0) {
+    return "Engine status";
+  }
+  if (strcmp(reg.key, "oil_level") == 0) {
+    return "Oil level";
+  }
+  if (strcmp(reg.key, "coolant_level") == 0) {
+    return "Coolant level";
+  }
+  return reg.name;
+}
+
+void printBatchReadable(uint16_t batchStart, const uint16_t *values,
+                        uint8_t valueCount) {
+  if (!values || valueCount == 0) {
+    return;
+  }
+  const uint16_t batchEnd =
+      static_cast<uint16_t>(batchStart + valueCount);  // exclusive
+  for (size_t i = 0; i < kMapCount; i++) {
+    const DseRegister &r = kMap[i];
+    // Skip alarm/SCF noise in iterate output
+    if (r.kind == DseDecodeKind::AlarmPacked ||
+        r.kind == DseDecodeKind::Bitmask || strncmp(r.key, "scf_", 4) == 0 ||
+        strncmp(r.key, "led_", 4) == 0 || strncmp(r.key, "alm_", 4) == 0) {
+      continue;
+    }
+    const uint8_t need = static_cast<uint8_t>(r.width);
+    if (r.address < batchStart ||
+        static_cast<uint16_t>(r.address + need) > batchEnd) {
+      continue;
+    }
+    const uint8_t off = static_cast<uint8_t>(r.address - batchStart);
+    const DseDecodedValue v = decode(r, values + off, need);
+    if (!v.ok) {
+      continue;
+    }
+
+    Serial.print(friendlyLabel(r));
+    Serial.print(F(": "));
+    if (v.invalid) {
+      Serial.println(F("unavailable"));
+      continue;
+    }
+    switch (r.kind) {
+      case DseDecodeKind::EnumOpMode:
+        Serial.println(opModeName(static_cast<uint16_t>(v.rawU)));
+        break;
+      case DseDecodeKind::EnumEngStatus:
+        Serial.println(engStatusName(static_cast<uint16_t>(v.rawU)));
+        break;
+      case DseDecodeKind::HoursFromSeconds: {
+        char buf[24];
+        dtostrf(static_cast<double>(v.engineering), 0, 2, buf);
+        Serial.print(buf);
+        Serial.println(F(" h"));
+        break;
+      }
+      case DseDecodeKind::IdentityU16:
+      case DseDecodeKind::IdentityU32:
+        Serial.println(v.rawU);
+        break;
+      case DseDecodeKind::Scaled:
+      default:
+        printScaled(v.engineering, r.factor);
+        if (r.unit && r.unit[0]) {
+          Serial.print(' ');
+          Serial.print(r.unit);
+        }
+        Serial.println();
+        break;
+    }
+  }
+}
+
 }  // namespace DseRegisters

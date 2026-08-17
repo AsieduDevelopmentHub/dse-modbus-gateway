@@ -97,22 +97,22 @@ Named DSE readings (GenComm + S6 map):
 
 ```text
 device select dse7320
+iterate
+iterate basic
+iterate power
+iterate 3 basic
+set slave 1
+set baud 9600
 regs
 get battery_v
 get eng_rpm
-get eng_status
-get oil_press
-poll engine
-poll alarms
-alarms
-poll scf
 scf list
 scf flags
 scf auto
 scf telemetry_start
-scf test_on_load
-scf telemetry_stop
 ```
+
+Default DSE profile: **slave ID 1**, **9600 8N1** (override anytime with `set slave` / `set baud`).
 
 ---
 

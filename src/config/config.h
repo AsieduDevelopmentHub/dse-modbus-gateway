@@ -16,11 +16,10 @@
 #endif
 
 // ---------------------------------------------------------------------------
-// Modbus RTU defaults — change to match your DSE site settings
-// Do NOT assume these are correct for every installation.
+// Modbus RTU defaults — DSE site default (overridable via CLI set / device)
 // ---------------------------------------------------------------------------
 #ifndef MODBUS_SLAVE_ID
-#define MODBUS_SLAVE_ID 10
+#define MODBUS_SLAVE_ID 1
 #endif
 
 #ifndef MODBUS_BAUD_RATE

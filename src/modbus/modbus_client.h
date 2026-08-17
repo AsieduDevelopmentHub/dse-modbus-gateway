@@ -36,6 +36,7 @@ struct ModbusTxnInfo {
   uint8_t stopBits = 1;
   uint16_t address = 0;
   uint16_t quantity = 0;
+  bool quiet = false;  // suppress verbose TX/RX dump (iterate/batch)
 };
 
 struct RawRs485Capture {

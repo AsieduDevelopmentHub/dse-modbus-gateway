@@ -68,22 +68,24 @@ void Cli::printHelp() {
   Serial.println(F("  regs | registers                  (DSE map list)"));
   Serial.println(F("  get <key|#|addr>                   (named scaled read)"));
   Serial.println(F("  poll [basic|engine|power|alarms|leds|identity|scf|all]"));
+  Serial.println(F("  iterate [basic|power|engine|all]   (batch readable dump)"));
+  Serial.println(F("  iterate <n> [mode]                 (repeat n times)"));
   Serial.println(F("  alarms                             (active alarms only)"));
   Serial.println(F("  scf list|flags|<cmd>|raw <key>     (GenComm control write)"));
+  Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
   Serial.println(F("  read <addr> <qty> | readhex <hex> <qty>"));
   Serial.println(F("  rawread <slave> <fc> <hex_addr> <qty>"));
   Serial.println(F("  rs485raw <slave> <fc> <hex_addr> <qty>"));
   Serial.println(F("  rs485raw-repeat <n> <slave> <fc> <hex_addr> <qty>"));
-  Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
   Serial.println(F("  crc-test"));
   Serial.println(F("  diagnostic on|off"));
   Serial.println(F("  repeat <n> <slave> <fc> <hex_addr> <qty>"));
   Serial.println();
   Serial.println(F("DSE examples:"));
+  Serial.println(F("  iterate | iterate basic | iterate 3 power"));
   Serial.println(F("  get battery_v | get eng_rpm | get eng_status"));
-  Serial.println(F("  poll engine | poll alarms | alarms"));
-  Serial.println(F("  scf list | scf flags | scf auto | scf telemetry_start"));
-  Serial.println(F("  scf test_on_load | scf telemetry_stop | scf stop"));
+  Serial.println(F("  set slave 1 | set baud 9600"));
+  Serial.println(F("  scf auto | scf telemetry_start | scf stop"));
 }
 
 void Cli::printStatus() {
@@ -388,6 +390,108 @@ void Cli::cmdPoll(char *args) {
   Serial.print(F("Polled "));
   Serial.print(n);
   Serial.println(F(" registers."));
+}
+
+bool Cli::batchReadPrint(uint16_t address, uint16_t quantity) {
+  ModbusTxnInfo info = makeTxnInfo();
+  info.address = address;
+  info.quantity = quantity;
+  info.quiet = true;
+  const ModbusResponse resp =
+      modbus.readRegisters(_slaveId, 0x03, address, quantity, &info);
+  if (resp.result != ModbusResult::Ok) {
+    Serial.print(F("BATCH FAIL @"));
+    Serial.print(address);
+    Serial.print(F(" qty="));
+    Serial.print(quantity);
+    Serial.print(F(" result="));
+    Serial.println(static_cast<int>(resp.result));
+    return false;
+  }
+  DseRegisters::printBatchReadable(address, resp.values, resp.valueCount);
+  return true;
+}
+
+void Cli::cmdIterate(char *args) {
+  // iterate [mode]
+  // iterate <n> [mode]
+  char *tok1 = strtok(args, " \t");
+  char *tok2 = strtok(nullptr, " \t");
+  int loops = 1;
+  const char *mode = "basic";
+
+  if (tok1) {
+    char *end = nullptr;
+    const long n = strtol(tok1, &end, 10);
+    if (end && *end == '\0' && n >= 1) {
+      loops = static_cast<int>(n > 50 ? 50 : n);
+      mode = tok2 ? tok2 : "basic";
+    } else {
+      mode = tok1;
+    }
+  }
+
+  if (strcasecmp(mode, "basic") != 0 && strcasecmp(mode, "power") != 0 &&
+      strcasecmp(mode, "engine") != 0 && strcasecmp(mode, "all") != 0) {
+    Serial.println(F("Usage: iterate [basic|power|engine|all]"));
+    Serial.println(F("       iterate <n> [basic|power|engine|all]"));
+    return;
+  }
+  if (!ensureDseSelected()) {
+    return;
+  }
+
+  for (int pass = 0; pass < loops; pass++) {
+    if (loops > 1) {
+      Serial.print(F("## Iterate "));
+      Serial.print(pass + 1);
+      Serial.print('/');
+      Serial.println(loops);
+    } else {
+      Serial.print(F("## DSE iterate ("));
+      Serial.print(mode);
+      Serial.print(F(")  slave="));
+      Serial.print(_slaveId);
+      Serial.print(F("  baud="));
+      Serial.println(_baudRate);
+    }
+
+    // Contiguous FC03 batches (max 32 regs). Quiet TX/RX; readable lines only.
+    if (strcasecmp(mode, "basic") == 0 || strcasecmp(mode, "engine") == 0 ||
+        strcasecmp(mode, "all") == 0) {
+      // Identity + mode: 768..775
+      batchReadPrint(768, 8);
+      delay(30);
+      // Engine + generator instrumentation: 1024..1055 (32 regs)
+      batchReadPrint(1024, 32);
+      delay(30);
+      // Phase C power + utility: 1056..1065
+      batchReadPrint(1056, 10);
+      delay(30);
+      // Engine status
+      batchReadPrint(1408, 1);
+      delay(30);
+    }
+
+    if (strcasecmp(mode, "power") == 0 || strcasecmp(mode, "all") == 0) {
+      // Derived power / PF block: 1536..1558
+      batchReadPrint(1536, 23);
+      delay(30);
+      // Accumulators: 1798..1809
+      batchReadPrint(1798, 12);
+      delay(30);
+    }
+
+    if (strcasecmp(mode, "engine") == 0 || strcasecmp(mode, "all") == 0) {
+      // Extended levels
+      batchReadPrint(1357, 3);
+      delay(30);
+    }
+
+    if (pass + 1 < loops) {
+      delay(500);
+    }
+  }
 }
 
 void Cli::cmdAlarms(char *args) {
@@ -814,6 +918,8 @@ void Cli::handleLine(char *line) {
     cmdGet(rest);
   } else if (strcasecmp(cmd, "poll") == 0) {
     cmdPoll(rest);
+  } else if (strcasecmp(cmd, "iterate") == 0) {
+    cmdIterate(rest);
   } else if (strcasecmp(cmd, "alarms") == 0) {
     cmdAlarms(rest);
   } else if (strcasecmp(cmd, "scf") == 0) {

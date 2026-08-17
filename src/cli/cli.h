@@ -31,10 +31,12 @@ private:
   void cmdPoll(char *args);
   void cmdAlarms(char *args);
   void cmdScf(char *args);
+  void cmdIterate(char *args);
   void applySelectedDevice();
   ModbusTxnInfo makeTxnInfo() const;
   bool ensureDseSelected() const;
   void readAndPrintRegister(const DseRegister &reg);
+  bool batchReadPrint(uint16_t address, uint16_t quantity);
 
   static constexpr size_t kLineMax = 96;
   char _line[kLineMax];

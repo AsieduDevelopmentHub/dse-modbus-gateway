@@ -300,6 +300,7 @@ ModbusResponse ModbusClient::readRegisters(uint8_t slaveId,
                                            uint16_t quantity,
                                            const ModbusTxnInfo *info) {
   ModbusResponse empty;
+  const bool quiet = info && info->quiet;
   if (quantity == 0 || quantity > 32) {
     empty.result = ModbusResult::InvalidArgs;
     Serial.println(F("ERROR: quantity must be 1..32"));
@@ -312,29 +313,31 @@ ModbusResponse ModbusClient::readRegisters(uint8_t slaveId,
   }
 
   const uint32_t txn = nextTxnId();
-  Serial.println(F("========================================"));
-  Serial.println(F("MODBUS RTU DIAGNOSTIC"));
-  Serial.print(F("TXN #"));
-  Serial.println(txn);
-  if (info && info->deviceName) {
-    Serial.print(F("Device: "));
-    Serial.println(info->deviceName);
-  }
-  Serial.print(F("REQUEST fields: slave="));
-  Serial.print(slaveId);
-  Serial.print(F(" fc=0x"));
-  Serial.print(functionCode, HEX);
-  Serial.print(F(" addr=0x"));
-  Serial.print(address, HEX);
-  Serial.print(F(" qty="));
-  Serial.println(quantity);
-  if (info && info->baud) {
-    Serial.print(F("Runtime UART: "));
-    Serial.print(info->baud);
-    Serial.print(F(" "));
-    Serial.print(info->dataBits);
-    Serial.print(info->parity == 1 ? 'O' : (info->parity == 2 ? 'E' : 'N'));
-    Serial.println(info->stopBits);
+  if (!quiet) {
+    Serial.println(F("========================================"));
+    Serial.println(F("MODBUS RTU DIAGNOSTIC"));
+    Serial.print(F("TXN #"));
+    Serial.println(txn);
+    if (info && info->deviceName) {
+      Serial.print(F("Device: "));
+      Serial.println(info->deviceName);
+    }
+    Serial.print(F("REQUEST fields: slave="));
+    Serial.print(slaveId);
+    Serial.print(F(" fc=0x"));
+    Serial.print(functionCode, HEX);
+    Serial.print(F(" addr=0x"));
+    Serial.print(address, HEX);
+    Serial.print(F(" qty="));
+    Serial.println(quantity);
+    if (info && info->baud) {
+      Serial.print(F("Runtime UART: "));
+      Serial.print(info->baud);
+      Serial.print(F(" "));
+      Serial.print(info->dataBits);
+      Serial.print(info->parity == 1 ? 'O' : (info->parity == 2 ? 'E' : 'N'));
+      Serial.println(info->stopBits);
+    }
   }
 
   uint8_t req[8];
@@ -346,8 +349,10 @@ ModbusResponse ModbusClient::readRegisters(uint8_t slaveId,
   req[5] = static_cast<uint8_t>(quantity & 0xFF);
   const size_t reqLen = modbusAppendCrc(req, 6);
 
-  Serial.print(F("FINAL TX BYTE ARRAY: "));
-  printHexLine("", req, reqLen);
+  if (!quiet) {
+    Serial.print(F("FINAL TX BYTE ARRAY: "));
+    printHexLine("", req, reqLen);
+  }
 
   ModbusResponse resp =
       transact(req, reqLen, slaveId, functionCode, quantity, info, false);
@@ -412,47 +417,54 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
                                       uint16_t quantity,
                                       const ModbusTxnInfo *info,
                                       bool writeResponse) {
-  (void)info;
   ModbusResponse resp;
+  const bool quiet = info && info->quiet;
   const uint8_t expectedExcFc = static_cast<uint8_t>(expectedFc | 0x80);
 
-  Serial.println(F("[1] Clear RX buffer"));
+  if (!quiet) {
+    Serial.println(F("[1] Clear RX buffer"));
+  }
   uint8_t stale[16];
   const size_t staleN = rs485.flushRxCounted(stale, sizeof(stale));
-  Serial.print(F("RX stale bytes: "));
-  Serial.println(staleN);
-  if (staleN > 0) {
-    printHexLine("STALE", stale,
-                 staleN > sizeof(stale) ? sizeof(stale) : staleN);
+  if (!quiet) {
+    Serial.print(F("RX stale bytes: "));
+    Serial.println(staleN);
+    if (staleN > 0) {
+      printHexLine("STALE", stale,
+                   staleN > sizeof(stale) ? sizeof(stale) : staleN);
+    }
+    Serial.print(F("[2] DE/RE before TX: "));
+    Serial.println(rs485.deReLevel());
+    Serial.println(F("[3] TX + hardware TX-done wait"));
   }
-
-  Serial.print(F("[2] DE/RE before TX: "));
-  Serial.println(rs485.deReLevel());
-  Serial.println(F("[3] TX + hardware TX-done wait"));
 
   uint32_t tStart = 0, tDone = 0, tDeLow = 0;
   const size_t written =
       rs485.transmit(request, requestLen, &tStart, &tDone, &tDeLow);
-  Serial.print(F("write() returned: "));
-  Serial.print(written);
-  Serial.print(F(" expected: "));
-  Serial.println(requestLen);
-  Serial.print(F("DE/RE after switch to RX: "));
-  Serial.println(rs485.deReLevel());
-  Serial.print(F("TX start us: "));
-  Serial.println(tStart);
-  Serial.print(F("TX complete us: "));
-  Serial.println(tDone);
-  Serial.print(F("DE->RX us: "));
-  Serial.println(tDeLow);
+  if (!quiet) {
+    Serial.print(F("write() returned: "));
+    Serial.print(written);
+    Serial.print(F(" expected: "));
+    Serial.println(requestLen);
+    Serial.print(F("DE/RE after switch to RX: "));
+    Serial.println(rs485.deReLevel());
+    Serial.print(F("TX start us: "));
+    Serial.println(tStart);
+    Serial.print(F("TX complete us: "));
+    Serial.println(tDone);
+    Serial.print(F("DE->RX us: "));
+    Serial.println(tDeLow);
+  }
 
   const size_t echoN = rs485.flushRxCounted(nullptr, 0);
-  if (echoN) {
+  if (!quiet && echoN) {
     Serial.print(F("TX-echo bytes dropped: "));
     Serial.println(echoN);
   }
 
-  Serial.println(F("[4] Waiting for response..."));
+  if (!quiet) {
+    Serial.println(F("[4] Waiting for response..."));
+  }
   uint32_t firstMs = 0;
   const uint32_t tWait = millis();
   const size_t got =
@@ -461,32 +473,41 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
   resp.rawRxLen = got;
   const uint32_t elapsed = millis() - tWait;
 
-  Serial.println(F("[5] RX"));
-  if (got == 0) {
-    Serial.println(F("(none)"));
-    printTimeoutDetail(written == requestLen, true, 0, elapsed);
+  if (!quiet) {
+    Serial.println(F("[5] RX"));
+    if (got == 0) {
+      Serial.println(F("(none)"));
+      printTimeoutDetail(written == requestLen, true, 0, elapsed);
+      resp.result = ModbusResult::Timeout;
+      Serial.print(F("RESULT: "));
+      Serial.println(resultName(resp.result));
+      Serial.println(F("========================================"));
+      return resp;
+    }
+    printHexLine("", resp.rawRx, got);
+    Serial.print(F("RX length: "));
+    Serial.println(got);
+    Serial.print(F("Time to first RX byte: "));
+    Serial.print(firstMs);
+    Serial.println(F(" ms"));
+  } else if (got == 0) {
     resp.result = ModbusResult::Timeout;
-    Serial.print(F("RESULT: "));
-    Serial.println(resultName(resp.result));
-    Serial.println(F("========================================"));
     return resp;
   }
-  printHexLine("", resp.rawRx, got);
-  Serial.print(F("RX length: "));
-  Serial.println(got);
-  Serial.print(F("Time to first RX byte: "));
-  Serial.print(firstMs);
-  Serial.println(F(" ms"));
 
   if (got < 5) {
-    Serial.println(F("RESULT: MODBUS PARTIAL RESPONSE"));
+    if (!quiet) {
+      Serial.println(F("RESULT: MODBUS PARTIAL RESPONSE"));
+      Serial.println(F("========================================"));
+    }
     resp.result = ModbusResult::Partial;
-    Serial.println(F("========================================"));
     return resp;
   }
 
-  Serial.println(F("[6] Frame validation / CRC audit"));
-  printCrcAudit(resp.rawRx, (got >= 5) ? 5 : got);
+  if (!quiet) {
+    Serial.println(F("[6] Frame validation / CRC audit"));
+    printCrcAudit(resp.rawRx, (got >= 5) ? 5 : got);
+  }
 
   size_t frameOff = 0;
   size_t frameLen = 0;
@@ -516,7 +537,6 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
     }
     if (resp.rawRx[off + 1] == expectedFc) {
       if (writeResponse) {
-        // FC16 reply: slave FC addr_hi addr_lo qty_hi qty_lo CRC = 8 bytes
         constexpr size_t need = 8;
         if (remain >= need && modbusCrcOk(resp.rawRx + off, need)) {
           const uint16_t echoQty = static_cast<uint16_t>(
@@ -543,19 +563,21 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
   }
 
   if (found == Found::None) {
-    Serial.print(F("Slave byte: "));
-    Serial.println(resp.rawRx[0]);
-    Serial.print(F("Function byte: 0x"));
-    Serial.println(resp.rawRx[1], HEX);
-    Serial.print(F("Expected exception FC: 0x"));
-    Serial.println(expectedExcFc, HEX);
-    if ((resp.rawRx[1] & 0x80) && resp.rawRx[1] != expectedExcFc) {
-      Serial.println(F("UNEXPECTED FUNCTION (and CRC FAIL)"));
+    if (!quiet) {
+      Serial.print(F("Slave byte: "));
+      Serial.println(resp.rawRx[0]);
+      Serial.print(F("Function byte: 0x"));
+      Serial.println(resp.rawRx[1], HEX);
+      Serial.print(F("Expected exception FC: 0x"));
+      Serial.println(expectedExcFc, HEX);
+      if ((resp.rawRx[1] & 0x80) && resp.rawRx[1] != expectedExcFc) {
+        Serial.println(F("UNEXPECTED FUNCTION (and CRC FAIL)"));
+      }
+      Serial.println(F("RESULT: INVALID MODBUS FRAME (CRC)"));
+      Serial.println(F("NOTE: Do NOT treat this as a valid exception."));
+      Serial.println(F("========================================"));
     }
-    Serial.println(F("RESULT: INVALID MODBUS FRAME (CRC)"));
-    Serial.println(F("NOTE: Do NOT treat this as a valid exception."));
     resp.result = ModbusResult::CrcError;
-    Serial.println(F("========================================"));
     return resp;
   }
 
@@ -567,20 +589,24 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
   if (found == Found::UnexpectedFc) {
     resp.exceptionCode = frame[2];
     resp.result = ModbusResult::UnexpectedFunction;
-    Serial.println(F("RESULT: UNEXPECTED FUNCTION RESPONSE"));
-    Serial.println(F("========================================"));
+    if (!quiet) {
+      Serial.println(F("RESULT: UNEXPECTED FUNCTION RESPONSE"));
+      Serial.println(F("========================================"));
+    }
     return resp;
   }
 
   if (found == Found::Exception) {
     resp.exceptionCode = frame[2];
     resp.result = ModbusResult::Exception;
-    Serial.print(F("Exception 0x"));
-    Serial.print(resp.exceptionCode, HEX);
-    Serial.print(F(" "));
-    Serial.println(exceptionName(resp.exceptionCode));
-    Serial.println(F("RESULT: VALID MODBUS EXCEPTION"));
-    Serial.println(F("========================================"));
+    if (!quiet) {
+      Serial.print(F("Exception 0x"));
+      Serial.print(resp.exceptionCode, HEX);
+      Serial.print(F(" "));
+      Serial.println(exceptionName(resp.exceptionCode));
+      Serial.println(F("RESULT: VALID MODBUS EXCEPTION"));
+      Serial.println(F("========================================"));
+    }
     return resp;
   }
 
@@ -588,16 +614,18 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
     resp.byteCount = 0;
     resp.valueCount = 0;
     resp.values[0] =
-        static_cast<uint16_t>((frame[2] << 8) | frame[3]);  // start addr
+        static_cast<uint16_t>((frame[2] << 8) | frame[3]);
     resp.values[1] =
-        static_cast<uint16_t>((frame[4] << 8) | frame[5]);  // qty
-    Serial.print(F("WRITE ACK addr="));
-    Serial.print(resp.values[0]);
-    Serial.print(F(" qty="));
-    Serial.println(resp.values[1]);
+        static_cast<uint16_t>((frame[4] << 8) | frame[5]);
+    if (!quiet) {
+      Serial.print(F("WRITE ACK addr="));
+      Serial.print(resp.values[0]);
+      Serial.print(F(" qty="));
+      Serial.println(resp.values[1]);
+      Serial.println(F("RESULT: VALID MODBUS WRITE RESPONSE"));
+      Serial.println(F("========================================"));
+    }
     resp.result = ModbusResult::Ok;
-    Serial.println(F("RESULT: VALID MODBUS WRITE RESPONSE"));
-    Serial.println(F("========================================"));
     return resp;
   }
 
@@ -606,13 +634,17 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
   for (uint8_t i = 0; i < resp.valueCount; i++) {
     resp.values[i] = static_cast<uint16_t>((frame[3 + i * 2] << 8) |
                                            frame[4 + i * 2]);
-    Serial.print(F("Register["));
-    Serial.print(i);
-    Serial.print(F("]=0x"));
-    Serial.println(resp.values[i], HEX);
+    if (!quiet) {
+      Serial.print(F("Register["));
+      Serial.print(i);
+      Serial.print(F("]=0x"));
+      Serial.println(resp.values[i], HEX);
+    }
   }
   resp.result = ModbusResult::Ok;
-  Serial.println(F("RESULT: VALID MODBUS RESPONSE"));
-  Serial.println(F("========================================"));
+  if (!quiet) {
+    Serial.println(F("RESULT: VALID MODBUS RESPONSE"));
+    Serial.println(F("========================================"));
+  }
   return resp;
 }
