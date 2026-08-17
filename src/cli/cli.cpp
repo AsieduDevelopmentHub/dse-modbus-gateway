@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "config/config.h"
+#include "devices/dse7320_registers.h"
 #include "devices/modbus_device.h"
 #include "modbus/modbus_client.h"
 #include "modbus/modbus_crc.h"
@@ -63,6 +64,10 @@ void Cli::printHelp() {
   Serial.println(F("Commands:"));
   Serial.println(F("  help | status | config"));
   Serial.println(F("  devices | device list|show|select <key>"));
+  Serial.println(F("  regs | registers                  (DSE map list)"));
+  Serial.println(F("  get <key|#|addr>                   (named scaled read)"));
+  Serial.println(F("  poll [basic|engine|power|alarms|leds|identity|scf|all]"));
+  Serial.println(F("  alarms                             (active alarms only)"));
   Serial.println(F("  read <addr> <qty> | readhex <hex> <qty>"));
   Serial.println(F("  rawread <slave> <fc> <hex_addr> <qty>"));
   Serial.println(F("  rs485raw <slave> <fc> <hex_addr> <qty>"));
@@ -72,12 +77,11 @@ void Cli::printHelp() {
   Serial.println(F("  diagnostic on|off"));
   Serial.println(F("  repeat <n> <slave> <fc> <hex_addr> <qty>"));
   Serial.println();
-  Serial.println(F("Audit probe:"));
-  Serial.println(F("  diagnostic on"));
-  Serial.println(F("  crc-test"));
-  Serial.println(F("  rs485raw 50 04 0000 1"));
-  Serial.println(F("  rs485raw 50 03 0000 1"));
-  Serial.println(F("  rs485raw-repeat 20 50 04 0000 1"));
+  Serial.println(F("DSE examples:"));
+  Serial.println(F("  device select dse7320"));
+  Serial.println(F("  get battery_v | get eng_rpm | get eng_status"));
+  Serial.println(F("  poll engine | poll alarms | alarms"));
+  Serial.println(F("  get oil_press | get coolant_temp | get eng_hours"));
 }
 
 void Cli::printStatus() {
@@ -229,6 +233,188 @@ void Cli::cmdSet(char *args) {
   Serial.println(F("Unknown set target"));
 }
 
+bool Cli::ensureDseSelected() const {
+  if (strcasecmp(devices.selected().id, "dse7320") != 0) {
+    Serial.println(F("NOTE: named DSE registers apply to dse7320."));
+    Serial.println(F("      Use: device select dse7320"));
+    return false;
+  }
+  return true;
+}
+
+void Cli::readAndPrintRegister(const DseRegister &reg) {
+  const uint16_t qty = static_cast<uint16_t>(reg.width);
+  ModbusTxnInfo info = makeTxnInfo();
+  info.address = reg.address;
+  info.quantity = qty;
+  // Named reads always use FC03 holding registers (map definition).
+  const ModbusResponse resp =
+      modbus.readRegisters(_slaveId, 0x03, reg.address, qty, &info);
+  if (resp.result != ModbusResult::Ok) {
+    Serial.print(F("FAIL: "));
+    Serial.print(reg.key);
+    Serial.print(F(" @"));
+    Serial.println(reg.address);
+    return;
+  }
+  const DseDecodedValue decoded =
+      DseRegisters::decode(reg, resp.values, resp.valueCount);
+  DseRegisters::printDecoded(decoded);
+}
+
+void Cli::cmdRegs(char *args) {
+  (void)args;
+  DseRegisters::printList();
+}
+
+void Cli::cmdGet(char *args) {
+  char *tok = strtok(args, " \t");
+  if (!tok) {
+    Serial.println(F("Usage: get <key|#|address>"));
+    Serial.println(F("  get battery_v | get 1 | get 1029"));
+    return;
+  }
+  if (!ensureDseSelected()) {
+    return;
+  }
+
+  const DseRegister *reg = DseRegisters::findByKey(tok);
+  if (!reg) {
+    char *end = nullptr;
+    const long n = strtol(tok, &end, 0);
+    if (end && *end == '\0' && n > 0) {
+      reg = DseRegisters::findByIndex1(static_cast<size_t>(n));
+      if (!reg) {
+        reg = DseRegisters::findByAddress(static_cast<uint16_t>(n));
+      }
+    }
+  }
+  if (!reg) {
+    Serial.println(F("ERROR: unknown register (try 'regs')"));
+    return;
+  }
+
+  Serial.print(F("GET "));
+  DseRegisters::printEntry(*reg);
+  readAndPrintRegister(*reg);
+}
+
+void Cli::cmdPoll(char *args) {
+  char *tok = strtok(args, " \t");
+  const char *mode = tok ? tok : "basic";
+  if (tok && strcasecmp(mode, "basic") != 0 && strcasecmp(mode, "power") != 0 &&
+      strcasecmp(mode, "leds") != 0 && strcasecmp(mode, "all") != 0 &&
+      strcasecmp(mode, "engine") != 0 && strcasecmp(mode, "alarms") != 0 &&
+      strcasecmp(mode, "identity") != 0 && strcasecmp(mode, "scf") != 0 &&
+      strcasecmp(mode, "state") != 0) {
+    Serial.println(
+        F("Usage: poll [basic|engine|power|alarms|leds|identity|scf|state|all]"));
+    return;
+  }
+  if (!ensureDseSelected()) {
+    return;
+  }
+
+  auto want = [&](const DseRegister &r) -> bool {
+    if (strcasecmp(mode, "all") == 0) {
+      return true;
+    }
+    if (strcasecmp(mode, "leds") == 0) {
+      return strncmp(r.key, "led_", 4) == 0;
+    }
+    if (strcasecmp(mode, "alarms") == 0) {
+      return r.kind == DseDecodeKind::AlarmPacked;
+    }
+    if (strcasecmp(mode, "scf") == 0) {
+      return strncmp(r.key, "scf_", 4) == 0;
+    }
+    if (strcasecmp(mode, "identity") == 0) {
+      return strcmp(r.key, "mfr_code") == 0 || strcmp(r.key, "model") == 0 ||
+             strcmp(r.key, "serial") == 0;
+    }
+    if (strcasecmp(mode, "state") == 0) {
+      return strcmp(r.key, "op_mode") == 0 || strcmp(r.key, "eng_status") == 0;
+    }
+    if (strcasecmp(mode, "engine") == 0) {
+      return strcmp(r.key, "oil_press") == 0 ||
+             strcmp(r.key, "coolant_temp") == 0 ||
+             strcmp(r.key, "oil_temp") == 0 || strcmp(r.key, "fuel_level") == 0 ||
+             strcmp(r.key, "battery_v") == 0 || strcmp(r.key, "eng_rpm") == 0 ||
+             strcmp(r.key, "eng_status") == 0 || strcmp(r.key, "op_mode") == 0 ||
+             strcmp(r.key, "eng_hours") == 0 ||
+             strcmp(r.key, "eng_starts") == 0 ||
+             strcmp(r.key, "gen_pct_kw") == 0;
+    }
+    if (strcasecmp(mode, "power") == 0) {
+      return strncmp(r.key, "gen_p", 5) == 0 ||
+             strncmp(r.key, "gen_q", 5) == 0 ||
+             strncmp(r.key, "gen_s", 5) == 0 ||
+             strncmp(r.key, "gen_pf", 6) == 0 ||
+             strcmp(r.key, "gen_kwh_exp") == 0 ||
+             strcmp(r.key, "gen_pct_kw") == 0;
+    }
+    // basic
+    return strcmp(r.key, "battery_v") == 0 || strcmp(r.key, "eng_rpm") == 0 ||
+           strcmp(r.key, "eng_status") == 0 || strcmp(r.key, "op_mode") == 0 ||
+           strcmp(r.key, "gen_freq") == 0 || strcmp(r.key, "gen_van") == 0 ||
+           strcmp(r.key, "gen_vbn") == 0 || strcmp(r.key, "gen_vcn") == 0 ||
+           strcmp(r.key, "gen_ia") == 0 || strcmp(r.key, "gen_ib") == 0 ||
+           strcmp(r.key, "gen_ic") == 0 || strcmp(r.key, "gen_p_tot") == 0 ||
+           strcmp(r.key, "gen_pf") == 0 || strcmp(r.key, "gen_pct_kw") == 0 ||
+           strcmp(r.key, "oil_press") == 0 ||
+           strcmp(r.key, "coolant_temp") == 0 ||
+           strcmp(r.key, "fuel_level") == 0;
+  };
+
+  Serial.print(F("## DSE poll ("));
+  Serial.print(mode);
+  Serial.println(')');
+  size_t n = 0;
+  for (size_t i = 0; i < DseRegisters::count(); i++) {
+    const DseRegister &r = DseRegisters::at(i);
+    if (!want(r)) {
+      continue;
+    }
+    readAndPrintRegister(r);
+    n++;
+    delay(20);
+  }
+  Serial.print(F("Polled "));
+  Serial.print(n);
+  Serial.println(F(" registers."));
+}
+
+void Cli::cmdAlarms(char *args) {
+  (void)args;
+  if (!ensureDseSelected()) {
+    return;
+  }
+  Serial.println(F("## Active DSE alarms"));
+  size_t n = 0;
+  for (size_t i = 0; i < DseRegisters::count(); i++) {
+    const DseRegister &r = DseRegisters::at(i);
+    if (r.kind != DseDecodeKind::AlarmPacked) {
+      continue;
+    }
+    ModbusTxnInfo info = makeTxnInfo();
+    info.address = r.address;
+    info.quantity = 1;
+    const ModbusResponse resp =
+        modbus.readRegisters(_slaveId, 0x03, r.address, 1, &info);
+    if (resp.result != ModbusResult::Ok || resp.valueCount < 1) {
+      Serial.print(F("FAIL: "));
+      Serial.println(r.key);
+      continue;
+    }
+    DseRegisters::printAlarmActive(r.address, resp.values[0]);
+    n++;
+    delay(20);
+  }
+  Serial.print(F("Checked "));
+  Serial.print(n);
+  Serial.println(F(" alarm registers."));
+}
+
 void Cli::cmdRead(char *args, bool hexAddress) {
   char *addrStr = strtok(args, " \t");
   char *qtyStr = strtok(nullptr, " \t");
@@ -244,9 +430,17 @@ void Cli::cmdRead(char *args, bool hexAddress) {
     return;
   }
   ModbusTxnInfo info = makeTxnInfo();
-  modbus.readRegisters(_slaveId, _functionCode,
-                       static_cast<uint16_t>(address),
-                       static_cast<uint16_t>(quantity), &info);
+  info.address = static_cast<uint16_t>(address);
+  info.quantity = static_cast<uint16_t>(quantity);
+  const ModbusResponse resp = modbus.readRegisters(
+      _slaveId, _functionCode, static_cast<uint16_t>(address),
+      static_cast<uint16_t>(quantity), &info);
+  if (resp.result == ModbusResult::Ok &&
+      strcasecmp(devices.selected().id, "dse7320") == 0) {
+    DseRegisters::annotateRead(static_cast<uint16_t>(address),
+                               static_cast<uint16_t>(quantity), resp.values,
+                               resp.valueCount);
+  }
 }
 
 void Cli::cmdRawRead(char *args) {
@@ -511,6 +705,15 @@ void Cli::handleLine(char *line) {
     devices.printList();
   } else if (strcasecmp(cmd, "device") == 0) {
     cmdDevice(rest);
+  } else if (strcasecmp(cmd, "regs") == 0 ||
+             strcasecmp(cmd, "registers") == 0) {
+    cmdRegs(rest);
+  } else if (strcasecmp(cmd, "get") == 0) {
+    cmdGet(rest);
+  } else if (strcasecmp(cmd, "poll") == 0) {
+    cmdPoll(rest);
+  } else if (strcasecmp(cmd, "alarms") == 0) {
+    cmdAlarms(rest);
   } else if (strcasecmp(cmd, "read") == 0) {
     cmdRead(rest, false);
   } else if (strcasecmp(cmd, "readhex") == 0) {

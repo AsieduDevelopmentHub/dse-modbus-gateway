@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include "devices/dse7320_registers.h"
 #include "modbus/modbus_client.h"
 
 class Cli {
@@ -23,8 +24,14 @@ private:
   void cmdDevice(char *args);
   void cmdRepeat(char *args);
   void cmdDiagnostic(char *args);
+  void cmdRegs(char *args);
+  void cmdGet(char *args);
+  void cmdPoll(char *args);
+  void cmdAlarms(char *args);
   void applySelectedDevice();
   ModbusTxnInfo makeTxnInfo() const;
+  bool ensureDseSelected() const;
+  void readAndPrintRegister(const DseRegister &reg);
 
   static constexpr size_t kLineMax = 96;
   char _line[kLineMax];

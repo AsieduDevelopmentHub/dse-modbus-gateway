@@ -93,6 +93,21 @@ readhex 0405 1
 
 Confirm `0x0405` in official DSE docs before trusting any engineering meaning. Raw hex/decimal only until a register map is added.
 
+Named DSE readings (GenComm + S6 map):
+
+```text
+device select dse7320
+regs
+get battery_v
+get eng_rpm
+get eng_status
+get oil_press
+poll engine
+poll alarms
+alarms
+poll scf
+```
+
 ---
 
 ## Config
