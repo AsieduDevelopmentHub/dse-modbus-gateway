@@ -350,7 +350,59 @@ ModbusResponse ModbusClient::readRegisters(uint8_t slaveId,
   printHexLine("", req, reqLen);
 
   ModbusResponse resp =
-      transact(req, reqLen, slaveId, functionCode, quantity, info);
+      transact(req, reqLen, slaveId, functionCode, quantity, info, false);
+  resp.txnId = txn;
+  return resp;
+}
+
+ModbusResponse ModbusClient::writeMultipleRegisters(
+    uint8_t slaveId, uint16_t address, const uint16_t *values,
+    uint16_t quantity, const ModbusTxnInfo *info) {
+  ModbusResponse empty;
+  if (!values || quantity == 0 || quantity > 16) {
+    empty.result = ModbusResult::InvalidArgs;
+    Serial.println(F("ERROR: write quantity must be 1..16"));
+    return empty;
+  }
+
+  const uint32_t txn = nextTxnId();
+  Serial.println(F("========================================"));
+  Serial.println(F("MODBUS RTU WRITE (FC16)"));
+  Serial.print(F("TXN #"));
+  Serial.println(txn);
+  if (info && info->deviceName) {
+    Serial.print(F("Device: "));
+    Serial.println(info->deviceName);
+  }
+  Serial.print(F("REQUEST: slave="));
+  Serial.print(slaveId);
+  Serial.print(F(" addr="));
+  Serial.print(address);
+  Serial.print(F(" qty="));
+  Serial.println(quantity);
+
+  // slave FC addr_hi addr_lo qty_hi qty_lo byte_count data... crc
+  uint8_t req[64];
+  const uint8_t byteCount = static_cast<uint8_t>(quantity * 2);
+  req[0] = slaveId;
+  req[1] = 0x10;
+  req[2] = static_cast<uint8_t>((address >> 8) & 0xFF);
+  req[3] = static_cast<uint8_t>(address & 0xFF);
+  req[4] = static_cast<uint8_t>((quantity >> 8) & 0xFF);
+  req[5] = static_cast<uint8_t>(quantity & 0xFF);
+  req[6] = byteCount;
+  for (uint16_t i = 0; i < quantity; i++) {
+    req[7 + i * 2] = static_cast<uint8_t>((values[i] >> 8) & 0xFF);
+    req[8 + i * 2] = static_cast<uint8_t>(values[i] & 0xFF);
+  }
+  const size_t payloadLen = static_cast<size_t>(7 + byteCount);
+  const size_t reqLen = modbusAppendCrc(req, payloadLen);
+
+  Serial.print(F("FINAL TX BYTE ARRAY: "));
+  printHexLine("", req, reqLen);
+
+  ModbusResponse resp =
+      transact(req, reqLen, slaveId, 0x10, quantity, info, true);
   resp.txnId = txn;
   return resp;
 }
@@ -358,7 +410,8 @@ ModbusResponse ModbusClient::readRegisters(uint8_t slaveId,
 ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
                                       uint8_t expectedSlave, uint8_t expectedFc,
                                       uint16_t quantity,
-                                      const ModbusTxnInfo *info) {
+                                      const ModbusTxnInfo *info,
+                                      bool writeResponse) {
   (void)info;
   ModbusResponse resp;
   const uint8_t expectedExcFc = static_cast<uint8_t>(expectedFc | 0x80);
@@ -462,14 +515,29 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
       break;
     }
     if (resp.rawRx[off + 1] == expectedFc) {
-      const uint8_t bc = resp.rawRx[off + 2];
-      const size_t need = static_cast<size_t>(3 + bc + 2);
-      if (remain >= need && bc == (quantity * 2) &&
-          modbusCrcOk(resp.rawRx + off, need)) {
-        frameOff = off;
-        frameLen = need;
-        found = Found::Ok;
-        break;
+      if (writeResponse) {
+        // FC16 reply: slave FC addr_hi addr_lo qty_hi qty_lo CRC = 8 bytes
+        constexpr size_t need = 8;
+        if (remain >= need && modbusCrcOk(resp.rawRx + off, need)) {
+          const uint16_t echoQty = static_cast<uint16_t>(
+              (resp.rawRx[off + 4] << 8) | resp.rawRx[off + 5]);
+          if (echoQty == quantity) {
+            frameOff = off;
+            frameLen = need;
+            found = Found::Ok;
+            break;
+          }
+        }
+      } else {
+        const uint8_t bc = resp.rawRx[off + 2];
+        const size_t need = static_cast<size_t>(3 + bc + 2);
+        if (remain >= need && bc == (quantity * 2) &&
+            modbusCrcOk(resp.rawRx + off, need)) {
+          frameOff = off;
+          frameLen = need;
+          found = Found::Ok;
+          break;
+        }
       }
     }
   }
@@ -512,6 +580,23 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
     Serial.print(F(" "));
     Serial.println(exceptionName(resp.exceptionCode));
     Serial.println(F("RESULT: VALID MODBUS EXCEPTION"));
+    Serial.println(F("========================================"));
+    return resp;
+  }
+
+  if (writeResponse) {
+    resp.byteCount = 0;
+    resp.valueCount = 0;
+    resp.values[0] =
+        static_cast<uint16_t>((frame[2] << 8) | frame[3]);  // start addr
+    resp.values[1] =
+        static_cast<uint16_t>((frame[4] << 8) | frame[5]);  // qty
+    Serial.print(F("WRITE ACK addr="));
+    Serial.print(resp.values[0]);
+    Serial.print(F(" qty="));
+    Serial.println(resp.values[1]);
+    resp.result = ModbusResult::Ok;
+    Serial.println(F("RESULT: VALID MODBUS WRITE RESPONSE"));
     Serial.println(F("========================================"));
     return resp;
   }

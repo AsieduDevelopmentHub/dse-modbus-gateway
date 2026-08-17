@@ -166,11 +166,26 @@ Both registers 4104 and 4105 **must be written in a single multi-register write 
 
 | Key Value | Command |
 |-----------|---------|
-| 35701 | Select Auto Mode |
-| 35732 | Telemetry Start |
-| 35733 | Telemetry Stop |
+| 35700 | Select Stop mode |
+| 35701 | Select Auto mode |
+| 35702 | Select Manual mode |
+| 35703 | Select Test on Load mode (DG on load) |
+| 35704 | Select Auto with Manual Restore mode |
+| 35705 | Start engine if in Manual or Test modes |
+| 35706 | Mute alarm |
+| 35707 | Reset alarms |
+| 35708 | Transfer to generator |
+| 35709 | Transfer to mains |
+| 35732 | Telemetry Start (if in Auto) |
+| 35733 | Telemetry Stop / cancel (if in Auto) |
+| 35734 | Reset alarms (alt) |
+| 35735 | Clear telemetry alarm flag |
+| 35736 | Lock user controls |
+| 35737 | Unlock user controls |
 
-> **Note:** The official GenComm document (available from DSE technical support) contains the full control command list. The above are the most commonly published values found in open sources.
+Firmware CLI names: `stop`, `auto`, `manual`, `test_on_load`, `auto_restore`, `start_engine`, `mute_alarm`, `reset_alarms`, `transfer_gen`, `transfer_mains`, `telemetry_start`, `telemetry_stop`, `reset_alarms2`, `clear_telem_alarm`, `lock_controls`, `unlock_controls`.
+
+> **Note:** Always prefer `scf flags` first. Official GenComm may list additional keys; use `scf raw <key>` for undocumented codes.
 
 ---
 

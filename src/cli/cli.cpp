@@ -5,6 +5,7 @@
 
 #include "config/config.h"
 #include "devices/dse7320_registers.h"
+#include "devices/dse_scf.h"
 #include "devices/modbus_device.h"
 #include "modbus/modbus_client.h"
 #include "modbus/modbus_crc.h"
@@ -68,6 +69,7 @@ void Cli::printHelp() {
   Serial.println(F("  get <key|#|addr>                   (named scaled read)"));
   Serial.println(F("  poll [basic|engine|power|alarms|leds|identity|scf|all]"));
   Serial.println(F("  alarms                             (active alarms only)"));
+  Serial.println(F("  scf list|flags|<cmd>|raw <key>     (GenComm control write)"));
   Serial.println(F("  read <addr> <qty> | readhex <hex> <qty>"));
   Serial.println(F("  rawread <slave> <fc> <hex_addr> <qty>"));
   Serial.println(F("  rs485raw <slave> <fc> <hex_addr> <qty>"));
@@ -78,10 +80,10 @@ void Cli::printHelp() {
   Serial.println(F("  repeat <n> <slave> <fc> <hex_addr> <qty>"));
   Serial.println();
   Serial.println(F("DSE examples:"));
-  Serial.println(F("  device select dse7320"));
   Serial.println(F("  get battery_v | get eng_rpm | get eng_status"));
   Serial.println(F("  poll engine | poll alarms | alarms"));
-  Serial.println(F("  get oil_press | get coolant_temp | get eng_hours"));
+  Serial.println(F("  scf list | scf flags | scf auto | scf telemetry_start"));
+  Serial.println(F("  scf test_on_load | scf telemetry_stop | scf stop"));
 }
 
 void Cli::printStatus() {
@@ -415,6 +417,102 @@ void Cli::cmdAlarms(char *args) {
   Serial.println(F(" alarm registers."));
 }
 
+void Cli::cmdScf(char *args) {
+  char *tok = strtok(args, " \t");
+  if (!tok || strcasecmp(tok, "list") == 0 || strcasecmp(tok, "help") == 0) {
+    DseScf::printList();
+    return;
+  }
+  if (!ensureDseSelected()) {
+    return;
+  }
+
+  if (strcasecmp(tok, "flags") == 0) {
+    ModbusTxnInfo info = makeTxnInfo();
+    info.address = DseScf::kRegFlagsBase;
+    info.quantity = DseScf::kFlagRegCount;
+    const ModbusResponse resp = modbus.readRegisters(
+        _slaveId, 0x03, DseScf::kRegFlagsBase, DseScf::kFlagRegCount, &info);
+    if (resp.result != ModbusResult::Ok ||
+        resp.valueCount < DseScf::kFlagRegCount) {
+      Serial.println(F("FAIL: could not read SCF support flags"));
+      return;
+    }
+    Serial.println(F("## SCF support flags (4096-4103)"));
+    for (uint8_t i = 0; i < DseScf::kFlagRegCount; i++) {
+      Serial.print(F("  scf_f"));
+      Serial.print(i);
+      Serial.print(F(" @"));
+      Serial.print(DseScf::kRegFlagsBase + i);
+      Serial.print(F(" = 0x"));
+      Serial.println(resp.values[i], HEX);
+    }
+    Serial.println(F("Supported commands:"));
+    for (size_t i = 0; i < DseScf::count(); i++) {
+      const DseScfCommand &c = DseScf::at(i);
+      const bool ok = DseScf::isSupported(c.code, resp.values);
+      Serial.print(ok ? F("  [+] ") : F("  [-] "));
+      Serial.print(c.key);
+      Serial.print(F("  "));
+      Serial.println(c.name);
+    }
+    return;
+  }
+
+  uint16_t keyCode = 0;
+  const char *label = nullptr;
+  if (strcasecmp(tok, "raw") == 0) {
+    char *num = strtok(nullptr, " \t");
+    if (!num) {
+      Serial.println(F("Usage: scf raw <key>"));
+      return;
+    }
+    keyCode = static_cast<uint16_t>(strtoul(num, nullptr, 0));
+    label = "raw";
+  } else {
+    const DseScfCommand *cmd = DseScf::findByKey(tok);
+    if (!cmd) {
+      Serial.println(F("ERROR: unknown SCF command (try 'scf list')"));
+      return;
+    }
+    keyCode = cmd->code;
+    label = cmd->key;
+  }
+
+  Serial.println(F("WARNING: SCF write can change controller mode / start DG."));
+  Serial.print(F("SCF WRITE "));
+  Serial.print(label);
+  Serial.print(F(" key="));
+  Serial.print(keyCode);
+  Serial.print(F(" complement="));
+  Serial.println(static_cast<uint16_t>(65535u - keyCode));
+
+  // Best-effort support check (non-fatal if flags unread).
+  {
+    ModbusTxnInfo finfo = makeTxnInfo();
+    const ModbusResponse flags = modbus.readRegisters(
+        _slaveId, 0x03, DseScf::kRegFlagsBase, DseScf::kFlagRegCount, &finfo);
+    if (flags.result == ModbusResult::Ok &&
+        flags.valueCount >= DseScf::kFlagRegCount) {
+      if (!DseScf::isSupported(keyCode, flags.values)) {
+        Serial.println(
+            F("NOTE: support flag bit is clear for this key on this unit."));
+        Serial.println(F("      Sending write anyway (controller may reject)."));
+      }
+    }
+  }
+
+  ModbusTxnInfo info = makeTxnInfo();
+  info.address = DseScf::kRegKey;
+  info.quantity = 2;
+  const ModbusResponse wr = DseScf::writeKey(_slaveId, keyCode, &info);
+  if (wr.result == ModbusResult::Ok) {
+    Serial.println(F("SCF write ACK OK"));
+  } else {
+    Serial.println(F("SCF write FAILED"));
+  }
+}
+
 void Cli::cmdRead(char *args, bool hexAddress) {
   char *addrStr = strtok(args, " \t");
   char *qtyStr = strtok(nullptr, " \t");
@@ -714,6 +812,8 @@ void Cli::handleLine(char *line) {
     cmdPoll(rest);
   } else if (strcasecmp(cmd, "alarms") == 0) {
     cmdAlarms(rest);
+  } else if (strcasecmp(cmd, "scf") == 0) {
+    cmdScf(rest);
   } else if (strcasecmp(cmd, "read") == 0) {
     cmdRead(rest, false);
   } else if (strcasecmp(cmd, "readhex") == 0) {

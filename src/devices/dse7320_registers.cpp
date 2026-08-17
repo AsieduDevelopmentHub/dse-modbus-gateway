@@ -354,10 +354,6 @@ const DseRegister *findByKey(const char *key) {
   if (!key || !*key) {
     return nullptr;
   }
-  // Alias kept from S6 map naming
-  if (strcasecmp(key, "alt_rpm") == 0) {
-    key = "eng_rpm";
-  }
   for (size_t i = 0; i < kMapCount; i++) {
     if (strcasecmp(kMap[i].key, key) == 0) {
       return &kMap[i];

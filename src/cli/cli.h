@@ -3,6 +3,8 @@
 #include <Arduino.h>
 
 #include "devices/dse7320_registers.h"
+#include "devices/dse_scf.h"
+#include "devices/modbus_device.h"
 #include "modbus/modbus_client.h"
 
 class Cli {
@@ -28,6 +30,7 @@ private:
   void cmdGet(char *args);
   void cmdPoll(char *args);
   void cmdAlarms(char *args);
+  void cmdScf(char *args);
   void applySelectedDevice();
   ModbusTxnInfo makeTxnInfo() const;
   bool ensureDseSelected() const;

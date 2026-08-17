@@ -106,6 +106,12 @@ poll engine
 poll alarms
 alarms
 poll scf
+scf list
+scf flags
+scf auto
+scf telemetry_start
+scf test_on_load
+scf telemetry_stop
 ```
 
 ---

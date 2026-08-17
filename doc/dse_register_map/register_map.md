@@ -50,7 +50,7 @@ firmware decoding in `src/devices/dse7320_registers.*`.
 | Key | Register | Unit |
 |-----|---------:|------|
 | `battery_v` | 1029 | V |
-| `eng_rpm` (`alt_rpm` alias) | 1030 | rpm |
+| `eng_rpm` | 1030 | rpm |
 | `gen_van` / `gen_vbn` / `gen_vcn` | 1032 / 1034 / 1036 | V |
 | `gen_vab` / `gen_vbc` / `gen_vca` | 1038 / 1040 / 1042 | V |
 | `gen_ia` / `gen_ib` / `gen_ic` | 1044 / 1046 / 1048 | A |
@@ -70,10 +70,25 @@ firmware decoding in `src/devices/dse7320_registers.*`.
 | `oil_press` / `coolant_temp` / `oil_temp` / `fuel_level` | 1024–1027 | Engine |
 | `eng_hours` / `eng_starts` | 1798 / 1808 | Hours from seconds; start count |
 | `scf_f0`…`scf_f7` | 4096–4103 | SCF support flags (read) |
-| `scf_key` / `scf_key_inv` | 4104 / 4105 | Control write pair (FC16; not written by CLI yet) |
+| `scf_key` / `scf_key_inv` | 4104 / 4105 | Control write pair (use CLI `scf …`) |
 | `alm_39425`…`alm_39445` | 39425–39445 | Packed 4×4-bit alarms |
 | `alm_di_0`…`alm_di_3` | 39169–39172 | Digital input alarms |
 | `alm_plc_0`…`alm_plc_2` | 39476–39478 | PLC/user alarms |
+
+### SCF writes (CLI)
+
+```text
+scf list
+scf flags
+scf auto
+scf telemetry_start
+scf telemetry_stop
+scf test_on_load
+scf stop
+scf raw 35703
+```
+
+Writes key + complement (65535−key) to 4104/4105 in one FC16 transaction.
 
 ## Notes
 
@@ -83,4 +98,4 @@ firmware decoding in `src/devices/dse7320_registers.*`.
 - **Scaling:** engineering value = `raw × factor` (offset 0).
 - LED block corrected to **46648–46655** from the screenshot (not 48648).
 - Overall power factor factor set to **0.01** to match phase PF scaling.
-- CLI: `regs`, `get <key|#|addr>`, `poll [basic|engine|power|alarms|leds|identity|scf|state|all]`, `alarms`.
+- CLI: `regs`, `get <key|#|addr>`, `poll […]`, `alarms`, `scf list|flags|<cmd>|raw <key>`.

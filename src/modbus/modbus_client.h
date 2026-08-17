@@ -80,13 +80,20 @@ public:
                                uint16_t address, uint16_t quantity,
                                const ModbusTxnInfo *info = nullptr);
 
+  // FC16 write multiple holding registers (quantity 1..16).
+  ModbusResponse writeMultipleRegisters(uint8_t slaveId, uint16_t address,
+                                        const uint16_t *values,
+                                        uint16_t quantity,
+                                        const ModbusTxnInfo *info = nullptr);
+
   // Validate CRC on an already-captured buffer (for rs485raw follow-up).
   void printCrcAudit(const uint8_t *frame, size_t length);
 
 private:
   ModbusResponse transact(const uint8_t *request, size_t requestLen,
                           uint8_t expectedSlave, uint8_t expectedFc,
-                          uint16_t quantity, const ModbusTxnInfo *info);
+                          uint16_t quantity, const ModbusTxnInfo *info,
+                          bool writeResponse);
 
   void dlog(const char *msg);
   void printHexLine(const char *label, const uint8_t *data, size_t len);
