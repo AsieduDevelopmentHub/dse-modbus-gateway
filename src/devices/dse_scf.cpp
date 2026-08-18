@@ -81,6 +81,12 @@ bool isSupported(uint16_t scfKey, const uint16_t flags[kFlagRegCount]) {
 
 ModbusResponse writeKey(uint8_t slaveId, uint16_t scfKey,
                         const ModbusTxnInfo *info) {
+  if (scfKey == kKeyStop) {
+    ModbusResponse blocked;
+    blocked.result = ModbusResult::InvalidArgs;
+    Serial.println(F("BLOCKED: SCF stop (35700) is disabled — DG must keep running."));
+    return blocked;
+  }
   const uint16_t values[2] = {scfKey,
                               static_cast<uint16_t>(65535u - scfKey)};
   return modbus.writeMultipleRegisters(slaveId, kRegKey, values, 2, info);

@@ -21,6 +21,7 @@ constexpr uint16_t kRegKeyInv = 4105;
 constexpr uint16_t kRegFlagsBase = 4096;
 constexpr uint8_t kFlagRegCount = 8;
 constexpr uint16_t kKeyBase = 35700;
+constexpr uint16_t kKeyStop = 35700;  // NEVER write while DG is running
 
 size_t count();
 const DseScfCommand &at(size_t index);

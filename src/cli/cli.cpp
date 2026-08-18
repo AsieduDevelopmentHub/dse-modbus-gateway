@@ -70,6 +70,7 @@ void Cli::printHelp() {
   Serial.println(F("  poll [basic|engine|power|alarms|leds|identity|scf|all]"));
   Serial.println(F("  iterate [basic|power|engine|all]   (batch readable dump)"));
   Serial.println(F("  iterate <n> [mode]                 (repeat n times)"));
+  Serial.println(F("  watch [n]                          (loop: comm/regs/scf/alarms, no stop)"));
   Serial.println(F("  alarms                             (active alarms only)"));
   Serial.println(F("  scf list|flags|<cmd>|raw <key>     (GenComm control write)"));
   Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
@@ -83,6 +84,7 @@ void Cli::printHelp() {
   Serial.println();
   Serial.println(F("DSE examples:"));
   Serial.println(F("  iterate | iterate basic | iterate 3 power"));
+  Serial.println(F("  watch | watch 8"));
   Serial.println(F("  get battery_v | get eng_rpm | get eng_status"));
   Serial.println(F("  set slave 1 | set baud 9600"));
   Serial.println(F("  scf auto | scf telemetry_start | scf stop"));
@@ -494,6 +496,150 @@ void Cli::cmdIterate(char *args) {
   }
 }
 
+bool Cli::waitOrAbort(uint32_t ms) {
+  const uint32_t t0 = millis();
+  while ((millis() - t0) < ms) {
+    if (Serial.available()) {
+      return true;
+    }
+    delay(20);
+  }
+  return false;
+}
+
+void Cli::watchOnce() {
+  uint8_t ok = 0;
+  uint8_t fail = 0;
+
+  Serial.println(F("--- COMM ---"));
+  Serial.print(F("Slave "));
+  Serial.print(_slaveId);
+  Serial.print(F("  baud "));
+  Serial.print(_baudRate);
+  Serial.print(F(" 8N1  FC03"));
+  Serial.println();
+
+  auto batch = [&](uint16_t addr, uint16_t qty) {
+    if (batchReadPrint(addr, qty)) {
+      ok++;
+    } else {
+      fail++;
+    }
+    delay(25);
+  };
+
+  Serial.println(F("--- REGS (batch) ---"));
+  batch(768, 8);      // identity / op_mode
+  batch(1024, 32);    // engine + gen electrical
+  batch(1056, 10);    // phase C + mains
+  batch(1408, 1);     // engine status
+  batch(1536, 23);    // power / PF
+  batch(1798, 12);    // hours / energy / starts
+
+  Serial.println(F("--- SCF (read flags only, no writes) ---"));
+  {
+    ModbusTxnInfo info = makeTxnInfo();
+    info.quiet = true;
+    info.address = DseScf::kRegFlagsBase;
+    info.quantity = DseScf::kFlagRegCount;
+    const ModbusResponse resp = modbus.readRegisters(
+        _slaveId, 0x03, DseScf::kRegFlagsBase, DseScf::kFlagRegCount, &info);
+    if (resp.result != ModbusResult::Ok ||
+        resp.valueCount < DseScf::kFlagRegCount) {
+      Serial.println(F("SCF flags: FAIL"));
+      fail++;
+    } else {
+      ok++;
+      Serial.print(F("Flags:"));
+      for (uint8_t i = 0; i < DseScf::kFlagRegCount; i++) {
+        Serial.print(' ');
+        Serial.print(F("0x"));
+        Serial.print(resp.values[i], HEX);
+      }
+      Serial.println();
+      Serial.println(F("Supported (read):"));
+      for (size_t i = 0; i < DseScf::count(); i++) {
+        const DseScfCommand &c = DseScf::at(i);
+        if (c.code == DseScf::kKeyStop) {
+          continue;  // never advertise stop as an action
+        }
+        if (DseScf::isSupported(c.code, resp.values)) {
+          Serial.print(F("  [+] "));
+          Serial.println(c.key);
+        }
+      }
+    }
+  }
+
+  Serial.println(F("--- ALARMS (active only) ---"));
+  {
+    ModbusTxnInfo info = makeTxnInfo();
+    info.quiet = true;
+    info.address = 39425;
+    info.quantity = 21;
+    const ModbusResponse resp =
+        modbus.readRegisters(_slaveId, 0x03, 39425, 21, &info);
+    if (resp.result != ModbusResult::Ok) {
+      Serial.println(F("Alarm page 154: FAIL"));
+      fail++;
+    } else {
+      ok++;
+      for (uint8_t i = 0; i < resp.valueCount; i++) {
+        DseRegisters::printAlarmActive(
+            static_cast<uint16_t>(39425 + i), resp.values[i]);
+      }
+    }
+  }
+
+  Serial.print(F("Batches OK="));
+  Serial.print(ok);
+  Serial.print(F(" FAIL="));
+  Serial.println(fail);
+  if (fail == 0) {
+    Serial.println(F("LINK: OK"));
+  } else {
+    Serial.println(F("LINK: DEGRADED"));
+  }
+}
+
+void Cli::cmdWatch(char *args) {
+  char *tok = strtok(args, " \t");
+  int loops = 8;
+  if (tok) {
+    const long n = strtol(tok, nullptr, 10);
+    if (n >= 1 && n <= 40) {
+      loops = static_cast<int>(n);
+    } else {
+      Serial.println(F("Usage: watch [n]   (n=1..40, default 8)"));
+      Serial.println(F("       abort: type any key"));
+      return;
+    }
+  }
+  if (!ensureDseSelected()) {
+    return;
+  }
+
+  Serial.println(F("## WATCH loop — comm / regs / scf-flags / alarms"));
+  Serial.println(F("    SCF stop is HARD-BLOCKED. Type any key to abort."));
+  for (int pass = 0; pass < loops; pass++) {
+    Serial.println();
+    Serial.print(F("======== cycle "));
+    Serial.print(pass + 1);
+    Serial.print('/');
+    Serial.print(loops);
+    Serial.println(F(" ========"));
+    watchOnce();
+    if (pass + 1 < loops) {
+      Serial.println(F("(next in 3s, any key aborts)"));
+      if (waitOrAbort(3000)) {
+        Serial.println(F("WATCH aborted."));
+        return;
+      }
+    }
+  }
+  Serial.println(F("WATCH complete."));
+}
+
 void Cli::cmdAlarms(char *args) {
   (void)args;
   if (!ensureDseSelected()) {
@@ -585,6 +731,13 @@ void Cli::cmdScf(char *args) {
     }
     keyCode = cmd->code;
     label = cmd->key;
+  }
+
+  if (keyCode == DseScf::kKeyStop ||
+      (label && strcasecmp(label, "stop") == 0)) {
+    Serial.println(F("BLOCKED: scf stop is disabled while the generator is running."));
+    Serial.println(F("         (read-only SCF: use 'scf flags' / 'watch')"));
+    return;
   }
 
   Serial.println(F("WARNING: SCF write can change controller mode / start DG."));
@@ -920,6 +1073,8 @@ void Cli::handleLine(char *line) {
     cmdPoll(rest);
   } else if (strcasecmp(cmd, "iterate") == 0) {
     cmdIterate(rest);
+  } else if (strcasecmp(cmd, "watch") == 0 || strcasecmp(cmd, "loop") == 0) {
+    cmdWatch(rest);
   } else if (strcasecmp(cmd, "alarms") == 0) {
     cmdAlarms(rest);
   } else if (strcasecmp(cmd, "scf") == 0) {
