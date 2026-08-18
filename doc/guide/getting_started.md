@@ -42,22 +42,18 @@ Close PuTTY / other serial apps before upload.
 
 ## CLI overview
 
+Full command reference: [cli.md](cli.md).
+
 ```text
 help
 status
-config
-devices
-device list
-device select <name|index>
-device show
-read <address> <quantity>
-readhex <hex_address> <quantity>
-rawread <slave> <fc> <hex_addr> <quantity>
-set slave <id>
-set fc <03|04>
+iterate basic
+watch
+get battery_v
+scf flags
 ```
 
-Device keys: `dse7320` (default), `et1641`.
+Device keys: `dse7320` (default), `et1641`. Named DSE reads (`get`, `iterate`, `watch`, `scf`, `alarms`) require `dse7320`.
 
 ---
 
@@ -91,16 +87,15 @@ device select dse7320
 readhex 0405 1
 ```
 
-Confirm `0x0405` in official DSE docs before trusting any engineering meaning. Raw hex/decimal only until a register map is added.
+`0x0405` is battery voltage in the named map (`get battery_v`). Use `rs485raw` first if you only need to prove the bus.
 
-Named DSE readings (GenComm + S6 map):
+Named DSE readings (GenComm + S6 map). Full list and SCF table: [cli.md](cli.md).
 
 ```text
 device select dse7320
 iterate
 iterate basic
-iterate power
-iterate 3 basic
+watch 4
 set slave 1
 set baud 9600
 regs
@@ -108,11 +103,11 @@ get battery_v
 get eng_rpm
 scf list
 scf flags
-scf auto
-scf telemetry_start
 ```
 
 Default DSE profile: **slave ID 1**, **9600 8N1** (override anytime with `set slave` / `set baud`).
+
+**Do not** send `scf stop` / key 35700 — that command is omitted from this firmware.
 
 ---
 
