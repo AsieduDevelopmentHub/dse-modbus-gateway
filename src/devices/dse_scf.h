@@ -5,7 +5,7 @@
 
 #include "modbus/modbus_client.h"
 
-// GenComm System Control Function (SCF) keys — write key + complement to
+// DSE System Control Function (SCF) keys — write key + complement to
 // holding registers 4104/4105 in one FC16 transaction.
 
 struct DseScfCommand {

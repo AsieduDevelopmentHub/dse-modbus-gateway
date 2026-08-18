@@ -5,9 +5,9 @@
 
 #include "modbus/modbus_client.h"
 
-// Deep Sea GenComm holding-register map (FC03).
-// Sources: doc/dse_register_map/register_map.md (S6/7320)
-//          doc/dse_register_map/register_clone_dse8610.md (GenComm 8610)
+// DSE holding-register map (FC03) for 7320 / 7320 MKII and similar DSE variants.
+// Sources: doc/dse_register_map/register_map.md (S6 / 7320)
+//          doc/dse_register_map/register_clone_dse8610.md (shared DSE family overlap)
 // 32-bit values: high-word first (page layout / Reverse order = No).
 
 enum class DseDataWidth : uint8_t {
@@ -19,7 +19,7 @@ enum class DseDecodeKind : uint8_t {
   Scaled = 0,         // engineering = raw * factor
   EnumOpMode,         // register 772
   EnumEngStatus,      // register 1408
-  AlarmPacked,        // 4×4-bit GenComm alarm slots
+  AlarmPacked,        // 4×4-bit DSE alarm slots
   Bitmask,            // SCF support flags etc.
   HoursFromSeconds,   // uint32 seconds → hours
   IdentityU16,        // raw uint16 (manufacturer/model)
@@ -40,7 +40,7 @@ struct DseRegister {
 
 struct DseDecodedValue {
   bool ok = false;
-  bool invalid = false;  // GenComm sentinel (unavailable)
+  bool invalid = false;  // DSE sentinel (unavailable)
   int32_t raw = 0;
   uint32_t rawU = 0;
   float engineering = 0.0f;

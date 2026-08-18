@@ -44,7 +44,7 @@ ModbusTxnInfo Cli::makeTxnInfo() const {
 void Cli::printBanner() {
   const ModbusDeviceConfig &d = devices.selected();
   Serial.println();
-  Serial.println(F("DSE 7320 Modbus RTU Gateway"));
+  Serial.println(F("DSE 7320 / 7320 MKII Modbus RTU Gateway"));
   Serial.println(F("---------------------------"));
   Serial.println(F("Phase 2A diagnostics enabled via CLI"));
   Serial.println();
@@ -72,7 +72,7 @@ void Cli::printHelp() {
   Serial.println(F("  iterate <n> [mode]                 (repeat n times)"));
   Serial.println(F("  watch [n]                          (loop: comm/regs/scf flags/alarms)"));
   Serial.println(F("  alarms                             (active alarms only)"));
-  Serial.println(F("  scf list|flags|<cmd>|raw <key>     (GenComm control write)"));
+  Serial.println(F("  scf list|flags|<cmd>|raw <key>     (DSE control write)"));
   Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
   Serial.println(F("  read <addr> <qty> | readhex <hex> <qty>"));
   Serial.println(F("  rawread <slave> <fc> <hex_addr> <qty>"));
@@ -241,7 +241,7 @@ void Cli::cmdSet(char *args) {
 
 bool Cli::ensureDseSelected() const {
   if (strcasecmp(devices.selected().id, "dse7320") != 0) {
-    Serial.println(F("NOTE: named DSE registers apply to dse7320."));
+    Serial.println(F("NOTE: named DSE registers apply to dse7320 (7320 / 7320 MKII)."));
     Serial.println(F("      Use: device select dse7320"));
     return false;
   }

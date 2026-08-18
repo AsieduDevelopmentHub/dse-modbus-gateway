@@ -1,6 +1,10 @@
 ﻿# dse7320_rtu
 
-ESP32-C3 SuperMini + MAX485 Modbus RTU master for DSE 7320 (+ ET1641 and future RS485 slaves).
+ESP32-C3 SuperMini + MAX485 Modbus RTU master for **Deep Sea Electronics (DSE) genset controllers**.
+
+Primary family: **DSE 7320**, **DSE 7320 MKII**, and other 73xx-class DSE variants that share the same holding-register layout. The CLI profile `dse7320` is that family, not a separate “GenComm board.”
+
+Also: Invendis ET1641 and future RS485 slaves.
 
 ## Docs
 

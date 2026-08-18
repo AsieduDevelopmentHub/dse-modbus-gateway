@@ -2,6 +2,8 @@
 
 USB Serial command line on the ESP32-C3. Type a command, press Enter. Prompt is `>`.
 
+This firmware talks to **DSE controllers** (DSE 7320, DSE 7320 MKII, and related 73xx variants). The named map under `dse7320` is that DSE family. DSE’s shared Modbus layout is sometimes called GenComm in vendor PDFs; this project does **not** target a separate GenComm board.
+
 Open with PlatformIO (RTS/DTR off so native USB CDC is not held in reset):
 
 ```bash
@@ -49,7 +51,7 @@ Other profile: `et1641` (slave 50, 9600 8N1). Named DSE commands (`get`, `iterat
 | `iterate [mode]` | **Batch** FC03 reads, human lines |
 | `iterate <n> [mode]` | Repeat iterate 1–50 times |
 | `watch [n]` / `loop [n]` | Loop: comm + batch regs + SCF flags + alarms |
-| `alarms` | Active GenComm alarms only |
+| `alarms` | Active DSE alarms only |
 | `scf list` | Control command names (no stop) |
 | `scf flags` | Read support flags 4096–4103 |
 | `scf <cmd>` | FC16 control write (see safety) |
@@ -196,9 +198,9 @@ Page 154: each holding register holds four 4-bit slots (0 disabled, 1 healthy, 2
 
 ---
 
-## SCF (control)
+## SCF (DSE control)
 
-Writes **key + (65535−key)** to holding **4104/4105** in one **FC16**. That can change mode or start/stop telemetry on a live set.
+Writes **key + (65535−key)** to holding **4104/4105** in one **FC16**. That can change mode or start/stop telemetry on a live DSE controller.
 
 Always read flags first:
 
@@ -300,4 +302,4 @@ rawread 50 03 0000 1
 |-----|----------|
 | [getting_started.md](getting_started.md) | Wiring, flash, ET1641 procedure |
 | [register_map.md](../dse_register_map/register_map.md) | Named registers + scaling |
-| [register_clone_dse8610.md](../dse_register_map/register_clone_dse8610.md) | GenComm / SCF background |
+| [register_clone_dse8610.md](../dse_register_map/register_clone_dse8610.md) | Shared DSE map notes (8610 docs overlap 7320) |

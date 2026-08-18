@@ -1,7 +1,11 @@
-# Modbus S6 Parameter Configuration
+# DSE 7320 / 7320 MKII Modbus map
 
-Source: Deep Sea register table (screenshot `deepsea_register_map.png`) used for
-firmware decoding in `src/devices/dse7320_registers.*`.
+Firmware decoding for **DSE genset controllers** (DSE 7320, DSE 7320 MKII, and
+similar DSE variants that share this holding-register layout). Profile `dse7320`.
+
+Source: Deep Sea S6 table (screenshot `deepsea_register_map.png`) plus the
+7320 MKII clone JSON and overlapping DSE family docs. Implemented in
+`src/devices/dse7320_registers.*`.
 
 | # | Slave Device Address | Register Number | Registers Amount | Data Type | Reverse Order | Function Code | Bit Position | Register Initial Value | Factor | Offset | SPN | SPN Name | PGN | S6 Address (SA) | PGN Sending Period |
 |---:|---:|---:|---:|---|:---:|---|---:|---:|---:|---:|---:|---|---:|---:|---:|
@@ -61,7 +65,7 @@ firmware decoding in `src/devices/dse7320_registers.*`.
 | `gen_pct_kw` | 1558 | % |
 | `led_stop` … `led_gen` | 46648 … 46655 | — |
 
-### Also from GenComm (`register_clone_dse8610.md`)
+### Also from shared DSE family map (`register_clone_dse8610.md`)
 
 | Key | Register | Notes |
 |-----|---------:|-------|
@@ -83,11 +87,11 @@ firmware decoding in `src/devices/dse7320_registers.*`.
 
 | Topic | Clone JSON | Firmware (kept) |
 |-------|------------|-----------------|
-| Address form | Hex page/offset (`0405`) | Decimal GenComm (`1029`) |
-| Frequency scale | Gauge uses ×0.01 (also ×1 in status) | ×0.1 (GenComm / Victron) |
+| Address form | Hex page/offset (`0405`) | Decimal holding (`1029`) |
+| Frequency scale | Gauge uses ×0.01 (also ×1 in status) | ×0.1 (DSE / Victron) |
 | Run hours | Treated as hours | Seconds → hours (÷3600) |
 | Total power display | ×0.001 → kW | Raw watts (`gen_p_tot`) |
-| Phase power L1/L2/L3 | `041a/041c/041e` = 1050/1052/1054 | **1052/1054/1056** (GenComm/S6/Victron) |
+| Phase power L1/L2/L3 | `041a/041c/041e` = 1050/1052/1054 | **1052/1054/1056** (S6 / Victron / DSE family) |
 | Alarms page 154 | 32-bit pairs (`9a01` len 4) | Per-register 16-bit nibble decode (same bits) |
 | Utility L1 | 16-bit @1060 (JSON notes docs say 32-bit) | 16-bit @1060 as JSON; L2/L3 32-bit |
 | SCF `resetmaint` | Key 35738 | `scf reset_maint` |

@@ -2,7 +2,8 @@
 
 ESP32-C3 SuperMini + MAX485 as a **multi-device Modbus RTU master**.
 
-Primary target: Deep Sea Electronics 7320.  
+Primary target: **DSE genset controllers** — DSE 7320, DSE 7320 MKII, and similar DSE variants that share the same Modbus map. Profile key `dse7320` covers that family.
+
 Phase 2 physical test device: Invendis ET1641 DC Energy Meter (slave 50).
 
 Manual USB Serial CLI only. No MQTT, Wi-Fi, or UI.
@@ -89,7 +90,7 @@ readhex 0405 1
 
 `0x0405` is battery voltage in the named map (`get battery_v`). Use `rs485raw` first if you only need to prove the bus.
 
-Named DSE readings (GenComm + S6 map). Full list and SCF table: [cli.md](cli.md).
+Named DSE readings (7320 / 7320 MKII map). Full list and SCF table: [cli.md](cli.md).
 
 ```text
 device select dse7320

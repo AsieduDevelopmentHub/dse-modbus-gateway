@@ -1,9 +1,11 @@
-# Deep Sea Electronics DSE8610 MK2 — GenComm / Modbus Register Map
+# DSE shared Modbus map — notes from DSE8610 MK2 docs
 
-**Device:** DSE8610 MK2 Auto Start Control Module (generator controller)  
+**This project’s product target is DSE 7320 / DSE 7320 MKII (and similar DSE genset controllers).**  
+This file is **not** an 8610 or “GenComm board” product spec. DSE 8610 MK2 documentation is kept because many holding-register addresses, SCF keys, and alarm packing are the **same DSE family layout** used on 7320-class controllers.
+
 **Manufacturer:** Deep Sea Electronics (DSE), deepsea.co.uk  
-**Source:** Senquip APN0029, Victron dbus-modbus-client dse.py, DSE8610 MK2 Operator Manual Issue 10  
-**Status:** Near-complete for monitoring; control registers require official GenComm doc from DSE
+**Sources:** Senquip APN0029, Victron dbus-modbus-client dse.py, DSE8610 MK2 Operator Manual Issue 10  
+**Status:** Useful overlap for monitoring/control keys; confirm each site’s model (7320 vs 7320 MKII) in DSE Configuration Suite.
 
 ---
 
@@ -13,7 +15,7 @@
 |-----------|---------|
 | **Modbus TCP (Ethernet)** | Built-in Ethernet port — no add-on module required. Up to 5 simultaneous Modbus master connections. Port: configurable (default 502 recommended; confirm in DSE Configuration Suite). |
 | **Modbus RTU (RS485)** | RS485 port. Default: 115200 baud, slave address 10. |
-| Both interfaces | Use identical GenComm register map — same addresses on TCP and RTU. |
+| Both interfaces | Same DSE holding-register addresses on TCP and RTU. |
 
 **Configuration tool:** DSE Configuration Suite (free download from deepseaelectronics.com) — required for port number and RS485 settings.
 
@@ -91,7 +93,7 @@ Modbus Register Address = (Page × 256) + Offset
 
 ---
 
-## 7. Alarm / Fault Status Registers (GenComm Page 154)
+## 7. Alarm / Fault Status Registers (DSE page 154)
 
 **Base register:** 39425 (Page 154 × 256 + Offset 1)  
 **Structure:** Each register holds **four 4-bit alarm slots**.
@@ -186,7 +188,7 @@ Both registers 4104 and 4105 **must be written in a single multi-register write 
 
 Firmware CLI names: `auto`, `manual`, `test_on_load`, `auto_restore`, `start_engine`, `mute_alarm`, `reset_alarms`, `transfer_gen`, `transfer_mains`, `telemetry_start`, `telemetry_stop`, `reset_alarms2`, `clear_telem_alarm`, `lock_controls`, `unlock_controls`, `reset_maint`. (`stop` / 35700 is not exposed.)
 
-> **Note:** Always prefer `scf flags` first. Official GenComm may list additional keys; use `scf raw <key>` for undocumented codes.
+> **Note:** Always prefer `scf flags` first. DSE may list additional keys; use `scf raw <key>` for undocumented codes.
 
 ---
 
@@ -207,7 +209,7 @@ Firmware CLI names: `auto`, `manual`, `test_on_load`, `auto_restore`, `start_eng
 
 ## 10. Gaps and Actions
 
-- [ ] **Obtain official DSE GenComm document** from DSE Technical Support (deepseaelectronics.com) — required for full control command list and any registers not listed above
+- [ ] **Obtain official DSE Modbus / communications document** from DSE Technical Support for the installed model (7320 / 7320 MKII) — required for full control command list and any registers not listed above
 - [ ] **Confirm Modbus TCP port** in DSE Configuration Suite (default 502 but not hardcoded)
 - [ ] **Confirm voltage measurement type** (L-N vs L-L) per site installation
 - [ ] Read DSE8610 MK2 Operator Manual Issue 10 (PDF at ers-cat.com) for site-specific configuration notes
@@ -223,4 +225,4 @@ Firmware CLI names: `auto`, `manual`, `test_on_load`, `auto_restore`, `start_eng
 | DSE8610 MK2 Operator Manual Issue 10 | https://www.ers-cat.com/application/files/5617/0446/7487/DSE8610-MKII-Operator-Manual_5.pdf |
 | DSE GenComm 2020 (Russian, 276pp) | https://energan.ru/bitrix/templates/landing24/download/gencomm-16-07-2020.pdf |
 | DSE Standard Alarms CSV | https://github.com/jamesarbrown/modbus2sql/blob/master/dist/CSV%20Files/Deep%20Sea%20Electronics/Alarm%20List%20-%20Standard%20Alarms%20DSE%20Gencom.csv |
-| Official GenComm doc | Available on request from DSE Technical Support (deepseaelectronics.com) |
+| Official DSE Modbus / communications doc (for installed model) | Request from DSE Technical Support for 7320 / 7320 MKII |

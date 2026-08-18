@@ -12,8 +12,8 @@
 static const ModbusDeviceConfig kDevices[] = {
     {
         "dse7320",
-        "DSE 7320 MKII",
-        "7320 MKII / EMF",
+        "DSE 7320 / 7320 MKII",
+        "DSE 73xx family",
         nullptr,
         MODBUS_SLAVE_ID,  // default 1 @ 9600 (CLI: set slave / set baud)
         MODBUS_BAUD_RATE,

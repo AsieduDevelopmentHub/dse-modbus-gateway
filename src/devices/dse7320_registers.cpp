@@ -21,7 +21,7 @@ namespace {
    unit, spn}
 
 const DseRegister kMap[] = {
-    // --- Identity (GenComm page 3) ---
+    // --- Identity (DSE page 3) ---
     {768, DseDataWidth::Int16, DseDecodeKind::IdentityU16, false, 1.0f,
      "mfr_code", "Manufacturer Code", "", 0},
     {769, DseDataWidth::Int16, DseDecodeKind::IdentityU16, false, 1.0f, "model",
@@ -64,7 +64,7 @@ const DseRegister kMap[] = {
     R32S(1256, 0.001f, "chg_i_out", "Battery Charger Output Current", "A", 0),
     R32S(1258, 0.001f, "chg_v_out", "Battery Charger Output Voltage", "V", 0),
 
-    // --- AC electrical (S6 + GenComm) ---
+    // --- AC electrical (S6 + DSE family) ---
     R16U(1031, 0.1f, "gen_freq", "Generator Average AC Frequency", "Hz", 2436),
     R32U(1032, 0.1f, "gen_van", "Generator Phase A Line-Neutral AC RMS Voltage",
          "V", 2445),
@@ -156,7 +156,7 @@ const DseRegister kMap[] = {
     {39172, DseDataWidth::Int16, DseDecodeKind::AlarmPacked, false, 1.0f,
      "alm_di_3", "Digital Input Alarms DI13-16", "", 0},
 
-    // --- Standard alarms GenComm page 154 ---
+    // --- Standard alarms DSE page 154 ---
     {39425, DseDataWidth::Int16, DseDecodeKind::AlarmPacked, false, 1.0f,
      "alm_39425", "Alarms: E-Stop / Oil / Coolant", "", 0},
     {39426, DseDataWidth::Int16, DseDecodeKind::AlarmPacked, false, 1.0f,
@@ -222,7 +222,7 @@ const DseRegister kMap[] = {
 constexpr size_t kMapCount = sizeof(kMap) / sizeof(kMap[0]);
 
 // Slot order: nibble0 (bits0-3) .. nibble3 (bits12-15)
-// Matches GenComm table columns right→left: Bits4-1 … Bits16-13
+// Matches DSE alarm table columns right→left: Bits4-1 … Bits16-13
 struct AlarmNames {
   uint16_t address;
   const char *slot[4];
@@ -573,7 +573,7 @@ void printEntry(const DseRegister &reg) {
 }
 
 void printList() {
-  Serial.println(F("## DSE GenComm register map (FC03)"));
+  Serial.println(F("## DSE register map (FC03)"));
   Serial.print(F("Entries: "));
   Serial.println(kMapCount);
   for (size_t i = 0; i < kMapCount; i++) {
