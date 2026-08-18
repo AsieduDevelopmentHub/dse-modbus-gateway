@@ -60,7 +60,7 @@ def send_cmd(ser, cmd, wait=8.0):
 
 
 def main():
-    print("Opening", PORT, "READ-ONLY watch. SCF stop is blocked.")
+    print("Opening", PORT, "READ-ONLY watch.")
     ser = serial.Serial(
         PORT,
         BAUD,

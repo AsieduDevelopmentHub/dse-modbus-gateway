@@ -103,9 +103,10 @@ scf auto
 scf telemetry_start
 scf telemetry_stop
 scf test_on_load
-scf stop
 scf raw 35703
 ```
+
+`scf stop` (key 35700) is **not implemented** in this firmware.
 
 Writes key + complement (65535−key) to 4104/4105 in one FC16 transaction.
 

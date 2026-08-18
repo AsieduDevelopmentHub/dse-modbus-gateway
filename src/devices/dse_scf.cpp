@@ -10,7 +10,6 @@ namespace {
 
 // Published GenComm SCF keys (Senquip APN0029 / DSE 056-188 / Victron dse.py).
 const DseScfCommand kCmds[] = {
-    {"stop", 35700, "Select Stop mode"},
     {"auto", 35701, "Select Auto mode"},
     {"manual", 35702, "Select Manual mode"},
     {"test_on_load", 35703, "Select Test on Load mode (DG on load)"},

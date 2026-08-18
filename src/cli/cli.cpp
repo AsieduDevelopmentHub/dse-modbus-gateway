@@ -70,7 +70,7 @@ void Cli::printHelp() {
   Serial.println(F("  poll [basic|engine|power|alarms|leds|identity|scf|all]"));
   Serial.println(F("  iterate [basic|power|engine|all]   (batch readable dump)"));
   Serial.println(F("  iterate <n> [mode]                 (repeat n times)"));
-  Serial.println(F("  watch [n]                          (loop: comm/regs/scf/alarms, no stop)"));
+  Serial.println(F("  watch [n]                          (loop: comm/regs/scf flags/alarms)"));
   Serial.println(F("  alarms                             (active alarms only)"));
   Serial.println(F("  scf list|flags|<cmd>|raw <key>     (GenComm control write)"));
   Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
@@ -87,7 +87,7 @@ void Cli::printHelp() {
   Serial.println(F("  watch | watch 8"));
   Serial.println(F("  get battery_v | get eng_rpm | get eng_status"));
   Serial.println(F("  set slave 1 | set baud 9600"));
-  Serial.println(F("  scf auto | scf telemetry_start | scf stop"));
+  Serial.println(F("  scf flags | scf auto | scf telemetry_start"));
 }
 
 void Cli::printStatus() {
@@ -560,9 +560,6 @@ void Cli::watchOnce() {
       Serial.println(F("Supported (read):"));
       for (size_t i = 0; i < DseScf::count(); i++) {
         const DseScfCommand &c = DseScf::at(i);
-        if (c.code == DseScf::kKeyStop) {
-          continue;  // never advertise stop as an action
-        }
         if (DseScf::isSupported(c.code, resp.values)) {
           Serial.print(F("  [+] "));
           Serial.println(c.key);
@@ -620,7 +617,7 @@ void Cli::cmdWatch(char *args) {
   }
 
   Serial.println(F("## WATCH loop — comm / regs / scf-flags / alarms"));
-  Serial.println(F("    SCF stop is HARD-BLOCKED. Type any key to abort."));
+  Serial.println(F("    Type any key to abort."));
   for (int pass = 0; pass < loops; pass++) {
     Serial.println();
     Serial.print(F("======== cycle "));

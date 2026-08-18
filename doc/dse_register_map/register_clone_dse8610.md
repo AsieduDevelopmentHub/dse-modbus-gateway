@@ -166,7 +166,7 @@ Both registers 4104 and 4105 **must be written in a single multi-register write 
 
 | Key Value | Command |
 |-----------|---------|
-| 35700 | Select Stop mode |
+| 35700 | Select Stop mode — **omitted from this firmware CLI** |
 | 35701 | Select Auto mode |
 | 35702 | Select Manual mode |
 | 35703 | Select Test on Load mode (DG on load) |
@@ -184,7 +184,7 @@ Both registers 4104 and 4105 **must be written in a single multi-register write 
 | 35737 | Unlock user controls |
 | 35738 | Reset maintenance alarm 1 due times |
 
-Firmware CLI names: `stop`, `auto`, `manual`, `test_on_load`, `auto_restore`, `start_engine`, `mute_alarm`, `reset_alarms`, `transfer_gen`, `transfer_mains`, `telemetry_start`, `telemetry_stop`, `reset_alarms2`, `clear_telem_alarm`, `lock_controls`, `unlock_controls`, `reset_maint`.
+Firmware CLI names: `auto`, `manual`, `test_on_load`, `auto_restore`, `start_engine`, `mute_alarm`, `reset_alarms`, `transfer_gen`, `transfer_mains`, `telemetry_start`, `telemetry_stop`, `reset_alarms2`, `clear_telem_alarm`, `lock_controls`, `unlock_controls`, `reset_maint`. (`stop` / 35700 is not exposed.)
 
 > **Note:** Always prefer `scf flags` first. Official GenComm may list additional keys; use `scf raw <key>` for undocumented codes.
 
