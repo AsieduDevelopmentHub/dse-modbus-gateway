@@ -3,9 +3,9 @@
 #include <Arduino.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 #include "config/config.h"
+#include "util/str_util.h"
 
 // Static profiles — unique slave IDs on one RS485 bus.
 // Do NOT put guessed register maps here.
@@ -78,14 +78,14 @@ bool DeviceRegistry::selectByKey(const char *key) {
   }
 
   for (size_t i = 0; i < kDeviceCount; i++) {
-    if (strcasecmp(key, kDevices[i].id) == 0 ||
-        strcasecmp(key, kDevices[i].model) == 0) {
+    if (strEqualsIgnoreCase(key, kDevices[i].id) == 0 ||
+        strEqualsIgnoreCase(key, kDevices[i].model) == 0) {
       _selected = i;
       return true;
     }
     // Allow partial match on display name, e.g. "et1641", "dse", "invendis"
-    if (strcasestr(kDevices[i].name, key) != nullptr ||
-        strcasestr(kDevices[i].id, key) != nullptr) {
+    if (strContainsIgnoreCase(kDevices[i].name, key) ||
+        strContainsIgnoreCase(kDevices[i].id, key)) {
       _selected = i;
       return true;
     }

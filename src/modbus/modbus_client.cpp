@@ -178,8 +178,8 @@ size_t ModbusClient::collectRx(uint8_t *buf, size_t bufMax, uint32_t timeoutMs,
 
   while ((millis() - start) < timeoutMs) {
     bool gotByte = false;
-    while (rs485.serial().available() && got < bufMax) {
-      buf[got++] = static_cast<uint8_t>(rs485.serial().read());
+    while (rs485.stream().available() && got < bufMax) {
+      buf[got++] = static_cast<uint8_t>(rs485.stream().read());
       if (!saw && outFirstByteMs) {
         *outFirstByteMs = millis() - start;
       }
@@ -193,8 +193,8 @@ size_t ModbusClient::collectRx(uint8_t *buf, size_t bufMax, uint32_t timeoutMs,
     delay(1);
   }
   delay(2);
-  while (rs485.serial().available() && got < bufMax) {
-    buf[got++] = static_cast<uint8_t>(rs485.serial().read());
+  while (rs485.stream().available() && got < bufMax) {
+    buf[got++] = static_cast<uint8_t>(rs485.stream().read());
   }
   return got;
 }

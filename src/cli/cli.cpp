@@ -10,6 +10,9 @@
 #include "modbus/modbus_client.h"
 #include "modbus/modbus_crc.h"
 #include "rs485/rs485.h"
+#include "util/str_util.h"
+
+#define strcasecmp strEqualsIgnoreCase
 
 Cli cli;
 
@@ -46,6 +49,11 @@ void Cli::printBanner() {
   Serial.println();
   Serial.println(F("DSE 7320 / 7320 MKII Modbus RTU Gateway"));
   Serial.println(F("---------------------------"));
+  Serial.print(F("Board: "));
+  Serial.println(F(BOARD_NAME));
+#if defined(GATEWAY_LITE)
+  Serial.println(F("Build: GATEWAY_LITE (Modbus diagnostics; no DSE named map)"));
+#endif
   Serial.println(F("Phase 2A diagnostics enabled via CLI"));
   Serial.println();
   Serial.print(F("Selected: "));
@@ -132,16 +140,22 @@ void Cli::printConfig() {
   }
   Serial.println(_functionCode, HEX);
   Serial.println();
-  Serial.println(F("## RS485"));
-  Serial.println(F("UART: UART1"));
-  Serial.print(F("RX: GPIO"));
+  Serial.println(F("## BOARD / RS485"));
+  Serial.print(F("Board: "));
+  Serial.println(F(BOARD_NAME));
+  Serial.print(F("UART: "));
+  Serial.println(F(RS485_UART_LABEL));
+  Serial.print(F("RX pin: "));
   Serial.println(RS485_RX_PIN);
-  Serial.print(F("TX: GPIO"));
+  Serial.print(F("TX pin: "));
   Serial.println(RS485_TX_PIN);
-  Serial.print(F("DE/RE: GPIO"));
+  Serial.print(F("DE/RE pin: "));
   Serial.println(RS485_DE_RE_PIN);
-  Serial.println(F("MAX485 supply: ESP32-C3 3.3V (current lab setup)"));
-  Serial.println(F("USB CDC and RS485 UART1 are separate interfaces."));
+  Serial.print(F("MAX485 VCC: "));
+  Serial.println(F(MAX485_VCC_NOTE));
+  Serial.print(F("RO note: "));
+  Serial.println(F(MAX485_RO_NOTE));
+  Serial.println(F("USB Serial (CLI) and RS485 UART are separate."));
 }
 
 void Cli::cmdDiagnostic(char *args) {

@@ -5,6 +5,7 @@
 #include <Arduino.h>
 
 #include "modbus/modbus_client.h"
+#include "util/str_util.h"
 
 namespace {
 
@@ -43,7 +44,7 @@ const DseScfCommand *findByKey(const char *key) {
     return nullptr;
   }
   for (size_t i = 0; i < kCmdCount; i++) {
-    if (strcasecmp(kCmds[i].key, key) == 0) {
+    if (strEqualsIgnoreCase(kCmds[i].key, key) == 0) {
       return &kCmds[i];
     }
   }

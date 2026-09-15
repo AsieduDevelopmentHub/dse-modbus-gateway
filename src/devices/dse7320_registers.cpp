@@ -4,6 +4,8 @@
 
 #include <Arduino.h>
 
+#include "util/str_util.h"
+
 namespace {
 
 // Macro helpers for table density
@@ -390,7 +392,7 @@ const DseRegister *findByKey(const char *key) {
     return nullptr;
   }
   for (size_t i = 0; i < kMapCount; i++) {
-    if (strcasecmp(kMap[i].key, key) == 0) {
+    if (strEqualsIgnoreCase(kMap[i].key, key) == 0) {
       return &kMap[i];
     }
   }

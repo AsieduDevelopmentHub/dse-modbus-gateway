@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstddef>
+#include <stddef.h>
 #include <stdint.h>
 
 // Compile-time Modbus slave profiles on the shared RS485 bus.

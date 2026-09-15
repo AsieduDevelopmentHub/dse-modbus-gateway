@@ -1,11 +1,26 @@
 #include "rs485/rs485.h"
 
+#if defined(ARDUINO_ARCH_ESP32)
 #include "driver/uart.h"
+#endif
 
 Rs485Bus rs485;
 
+#if defined(RS485_USE_SOFT_SERIAL)
+Rs485Bus::Rs485Bus() : _soft(RS485_RX_PIN, RS485_TX_PIN) {}
+#elif defined(ARDUINO_ARCH_ESP32)
+Rs485Bus::Rs485Bus() : _hw(RS485_UART_NUM) {}
+#else
+Rs485Bus::Rs485Bus() : _hw(Serial1) {}
+#endif
+
+#if defined(ARDUINO_ARCH_ESP32)
 SerialConfig Rs485Bus::makeSerialConfig(uint8_t dataBits, uint8_t parity,
                                         uint8_t stopBits) {
+#else
+uint8_t Rs485Bus::makeSerialConfig(uint8_t dataBits, uint8_t parity,
+                                   uint8_t stopBits) {
+#endif
   if (dataBits == 8 && stopBits == 1) {
     if (parity == 1) {
       return SERIAL_8O1;
@@ -27,6 +42,14 @@ SerialConfig Rs485Bus::makeSerialConfig(uint8_t dataBits, uint8_t parity,
   return SERIAL_8N1;
 }
 
+Stream &Rs485Bus::stream() {
+#if defined(RS485_USE_SOFT_SERIAL)
+  return _soft;
+#else
+  return _hw;
+#endif
+}
+
 void Rs485Bus::begin() {
   pinMode(RS485_DE_RE_PIN, OUTPUT);
   setReceiveMode();
@@ -41,10 +64,24 @@ void Rs485Bus::applyConfig(uint32_t baud, uint8_t dataBits, uint8_t parity,
   _parity = parity;
   _stopBits = stopBits;
 
-  _serial.end();
+#if defined(RS485_USE_SOFT_SERIAL)
+  _soft.end();
   delay(10);
-  _serial.begin(baud, makeSerialConfig(dataBits, parity, stopBits),
-                RS485_RX_PIN, RS485_TX_PIN);
+  // SoftwareSerial is 8N1 only — parity/stop overrides are ignored.
+  (void)parity;
+  (void)stopBits;
+  (void)dataBits;
+  _soft.begin(baud);
+#else
+  _hw.end();
+  delay(10);
+#if defined(ARDUINO_ARCH_ESP32)
+  _hw.begin(baud, makeSerialConfig(dataBits, parity, stopBits), RS485_RX_PIN,
+            RS485_TX_PIN);
+#else
+  _hw.begin(baud, makeSerialConfig(dataBits, parity, stopBits));
+#endif
+#endif
   flushRx();
 }
 
@@ -60,24 +97,34 @@ int Rs485Bus::deReLevel() const {
   return digitalRead(RS485_DE_RE_PIN);
 }
 
-HardwareSerial &Rs485Bus::serial() {
-  return _serial;
-}
-
 void Rs485Bus::flushRx() {
   (void)flushRxCounted(nullptr, 0);
 }
 
 size_t Rs485Bus::flushRxCounted(uint8_t *outBuf, size_t outMax) {
   size_t n = 0;
-  while (_serial.available()) {
-    const uint8_t b = static_cast<uint8_t>(_serial.read());
+  Stream &s = stream();
+  while (s.available()) {
+    const uint8_t b = static_cast<uint8_t>(s.read());
     if (outBuf && n < outMax) {
       outBuf[n] = b;
     }
     n++;
   }
   return n;
+}
+
+void Rs485Bus::waitTxComplete() {
+#if defined(RS485_USE_SOFT_SERIAL)
+  // SoftwareSerial::flush() waits until TX is idle.
+  _soft.flush();
+#elif defined(ARDUINO_ARCH_ESP32)
+  _hw.flush();
+  uart_wait_tx_done(static_cast<uart_port_t>(RS485_UART_NUM),
+                    pdMS_TO_TICKS(100));
+#else
+  _hw.flush();
+#endif
 }
 
 size_t Rs485Bus::transmit(const uint8_t *data, size_t len,
@@ -89,13 +136,8 @@ size_t Rs485Bus::transmit(const uint8_t *data, size_t len,
     *outTxStartUs = t0;
   }
 
-  const size_t written = _serial.write(data, len);
-  _serial.flush();  // Arduino: wait until TX FIFO drained
-
-  // ESP-IDF: wait until shift register finished last stop bit.
-  uart_wait_tx_done(static_cast<uart_port_t>(RS485_UART_NUM),
-                    pdMS_TO_TICKS(100));
-
+  const size_t written = stream().write(data, len);
+  waitTxComplete();
   delayMicroseconds(RS485_TX_SETTLE_US);
 
   const uint32_t t1 = micros();

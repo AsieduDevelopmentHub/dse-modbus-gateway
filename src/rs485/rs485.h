@@ -3,29 +3,36 @@
 #include <Arduino.h>
 #include "config/config.h"
 
-// MAX485 + UART1 (HardwareSerial).
-// DE/RE GPIO4: HIGH=TX, LOW=RX (tied together on module).
+#if defined(RS485_USE_SOFT_SERIAL)
+#include <SoftwareSerial.h>
+#endif
+
+// MAX485 + UART direction control.
+// DE/RE: HIGH=TX, LOW=RX (tie DE and RE together on the module).
 //
-// HARDWARE RISK (documented, not changed here):
-// - MAX485 module powered from ESP32-C3 3.3V
-// - GPIO20/21 are also ESP32-C3 default UART0 pins
+// ESP32-C3 WARNING: Powering MAX485 from the board 5V pin does NOT fix
+// RO → MCU RX. With VCC=5V, RO still drives ~5V into a 3.3V GPIO and can
+// corrupt trailing CRC bytes while leaving the frame prefix readable.
+// Use a 5V Arduino (Mega/Uno/Nano) or a level shifter / 3.3V transceiver
+// to isolate that failure mode.
 
 class Rs485Bus {
 public:
+  Rs485Bus();
+
   void begin();
   void applyConfig(uint32_t baud, uint8_t dataBits, uint8_t parity,
                    uint8_t stopBits);
 
   void setTransmitMode();
   void setReceiveMode();
-  int deReLevel() const;  // digitalRead of DE/RE pin
+  int deReLevel() const;
 
-  HardwareSerial &serial();
+  Stream &stream();
   void flushRx();
   size_t flushRxCounted(uint8_t *outBuf = nullptr, size_t outMax = 0);
 
-  // TX with DE high, hardware TX-done wait, then DE low.
-  // Returns bytes accepted by write(); sets outTxCompleteUs.
+  // TX with DE high, wait TX complete, settle, then DE low.
   size_t transmit(const uint8_t *data, size_t len, uint32_t *outTxStartUs,
                   uint32_t *outTxCompleteUs, uint32_t *outDeLowUs);
 
@@ -35,10 +42,25 @@ public:
   uint8_t stopBits() const { return _stopBits; }
 
 private:
+#if defined(ARDUINO_ARCH_ESP32)
   static SerialConfig makeSerialConfig(uint8_t dataBits, uint8_t parity,
                                        uint8_t stopBits);
+#else
+  static uint8_t makeSerialConfig(uint8_t dataBits, uint8_t parity,
+                                  uint8_t stopBits);
+#endif
 
-  HardwareSerial _serial{RS485_UART_NUM};
+  void waitTxComplete();
+
+#if defined(RS485_USE_SOFT_SERIAL)
+  SoftwareSerial _soft;
+#elif defined(ARDUINO_ARCH_ESP32)
+  HardwareSerial _hw;
+#else
+  // Mega / boards with Serial1
+  HardwareSerial &_hw;
+#endif
+
   uint32_t _baud = MODBUS_BAUD_RATE;
   uint8_t _dataBits = MODBUS_DATA_BITS;
   uint8_t _parity = MODBUS_PARITY;

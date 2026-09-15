@@ -6,9 +6,11 @@
 #include "rs485/rs485.h"
 
 void setup() {
-  // Native USB CDC (no CP210x/CH340). Baud is ignored by the host link.
   Serial.begin(USB_SERIAL_BAUD);
-  Serial.setTxTimeoutMs(0);  // don't block forever if host isn't open yet
+#if defined(ARDUINO_ARCH_ESP32)
+  // Native USB CDC: don't block forever if host isn't open yet.
+  Serial.setTxTimeoutMs(0);
+#endif
 
   rs485.begin();
   modbus.begin();
@@ -16,6 +18,7 @@ void setup() {
 }
 
 void loop() {
+#if defined(ARDUINO_ARCH_ESP32)
   // ESP32-C3 HWCDC: Serial's bool can flicker. Debounce so we don't spam the
   // banner or skip RX polling while the user is typing.
   static bool bannerShown = false;
@@ -34,6 +37,7 @@ void loop() {
   } else if (bannerShown && (millis() - lastHostOpenMs) > 3000) {
     bannerShown = false;
   }
+#endif
 
   // Always poll RX — do not gate on Serial bool (flicker drops keystrokes).
   cli.poll();
