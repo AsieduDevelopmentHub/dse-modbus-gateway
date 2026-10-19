@@ -6,7 +6,7 @@ Primary family: **DSE 7320**, **DSE 7320 MKII**, and other 73xx-class DSE varian
 
 Also: Invendis ET1641 and future RS485 slaves.
 
-**5V isolation benches:** Arduino Mega 2560 / Uno / Nano envs in `platformio.ini` (same CLI) to separate ESP32 3.3V RO-level issues from firmware bugs.
+**5V isolation benches:** Arduino Mega 2560 (full DSE named map via PROGMEM) / Uno / Nano (diagnostics-only `GATEWAY_LITE`) envs in `platformio.ini` — separate ESP32 3.3V RO-level issues from firmware bugs.
 
 ## Docs
 

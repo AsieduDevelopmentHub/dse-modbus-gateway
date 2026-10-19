@@ -3,8 +3,8 @@
 
 #include <Arduino.h>
 
-// GATEWAY_LITE: AVR 5V isolation benches keep Modbus CLI + CRC/raw diagnostics
-// only. Full DSE named map / SCF tables stay on ESP32 (string tables blow AVR RAM).
+// GATEWAY_LITE: optional AVR diagnostics-only build without named map/SCF.
+// Default Mega/Uno/Nano envs now include the PROGMEM-backed full map.
 
 #if defined(GATEWAY_LITE)
 
@@ -15,10 +15,8 @@ void liteNotice() {
       F("GATEWAY_LITE: DSE named map/SCF omitted (AVR RAM). Use rawread/rs485raw."));
 }
 
-static const DseRegister kDummy = {
-    0, DseDataWidth::Int16, DseDecodeKind::Scaled, false, 1.0f, "", "", "", 0};
-
-static const DseScfCommand kScfDummy = {"", 0, ""};
+static const DseRegister kDummy = {};
+static const DseScfCommand kScfDummy = {};
 
 }  // namespace
 

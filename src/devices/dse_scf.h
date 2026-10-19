@@ -9,9 +9,9 @@
 // holding registers 4104/4105 in one FC16 transaction.
 
 struct DseScfCommand {
-  const char *key;   // CLI name, e.g. "telemetry_start"
+  char key[24];      // CLI name, e.g. "telemetry_start"
   uint16_t code;     // System control key (e.g. 35732)
-  const char *name;  // human description
+  char name[48];     // human description
 };
 
 namespace DseScf {

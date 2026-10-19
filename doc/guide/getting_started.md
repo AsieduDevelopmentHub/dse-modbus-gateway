@@ -33,7 +33,9 @@ Typical symptom (matches lab logs): TX frame correct; RX shows a stable prefix l
 
 Prefer **Mega** over Uno/Nano: true hardware UART for RS485; USB Serial stays free for the CLI.
 
-Arduino envs use **`GATEWAY_LITE`**: same Modbus CLI (`crc-test`, `rawread`, `rs485raw`, `readhex`, …) but without the large DSE named-register / SCF string tables (those overflow AVR RAM). Full `get` / `iterate` / `watch` remain on the ESP32 build.
+**Mega 2560** includes the full DSE named-register map and SCF tables (strings in **PROGMEM** / flash) — same CLI as ESP32: `get`, `iterate`, `watch`, `regs`, `scf`, plus diagnostics.
+
+**Uno / Nano** (ATmega328) stay on **`GATEWAY_LITE`**: Modbus diagnostics only (`crc-test`, `rawread`, `rs485raw`, `readhex`). The named map needs ~47KB flash and does not fit in 32KB.
 
 ---
 

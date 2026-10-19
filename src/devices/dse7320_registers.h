@@ -32,9 +32,9 @@ struct DseRegister {
   DseDecodeKind kind;
   bool isSigned;      // scaled path only
   float factor;       // engineering = raw * factor (Scaled)
-  const char *key;
-  const char *name;
-  const char *unit;
+  char key[24];
+  char name[56];
+  char unit[8];
   uint32_t spn;       // 0 if unused
 };
 
