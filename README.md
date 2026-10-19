@@ -17,3 +17,9 @@ Also: Invendis ET1641 and future RS485 slaves.
 | [doc/status/phase_status.md](doc/status/phase_status.md) | Current phase status |
 | [doc/guide/getting_started.md](doc/guide/getting_started.md) | Wiring (ESP32 + Arduino), build, test procedures |
 | [doc/guide/cli.md](doc/guide/cli.md) | Full USB Serial CLI reference |
+
+## Maintainer
+
+Maintained by [Asiedu Minta Kwaku](https://asiedudevhub.auralenx.com/), a software developer and IoT & embedded systems engineer based in Ghana.
+
+For related work and project enquiries, visit my [portfolio](https://asiedudevhub.auralenx.com/) or connect on [LinkedIn](https://www.linkedin.com/in/asiedudevelopmenthub).
