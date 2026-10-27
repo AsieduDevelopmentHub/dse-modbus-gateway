@@ -2,7 +2,7 @@
 
 Multi-device Modbus RTU master (USB Serial CLI). Primary target: **DSE 7320 / 7320 MKII**. Bench slaves: Invendis ET1641 (slave 50).
 
-No MQTT, Wi-Fi, or UI yet.
+Wi-Fi soft-AP + local overview UI on ESP32-C3 (Phase 3A) — see [web_ui.md](web_ui.md). No MQTT/cloud yet.
 
 ---
 

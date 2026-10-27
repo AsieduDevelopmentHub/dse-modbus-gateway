@@ -1,0 +1,73 @@
+# Web UI — ESP32 local API + overview
+
+Phase 3A: Wi-Fi soft-AP + JSON status API + thin genset overview page on the **ESP32-C3** only. USB Serial CLI is unchanged. Mega / Uno / Nano stay RS485 benches (no Wi-Fi stack).
+
+**Modbus note:** live values need CRC-valid RS485. If RO is still 5V into the ESP32 RX, the UI will show `link: fail` / stale data — that is a level-shifter issue, not a UI bug.
+
+---
+
+## Connect
+
+1. Flash `esp32-c3-supermini`.
+2. Join Wi-Fi SSID `DSE-GW-XXXX` (suffix from chip MAC).
+3. Password default: `dsegateway` (change via `WIFI_AP_PASSWORD` in [`src/config/config.h`](../../src/config/config.h)).
+4. Open **http://192.168.4.1/**
+
+Optional STA: set `WIFI_STA_SSID` / `WIFI_STA_PASSWORD` at compile time. Soft-AP still runs; STA IP appears in `/api/status` when joined.
+
+**Auth:** none in v1 — treat AP/LAN as trusted.
+
+---
+
+## Endpoints
+
+| Method | Path | Body |
+|--------|------|------|
+| GET | `/` | Embedded overview HTML |
+| GET | `/api/status` | Full telemetry JSON (see below) |
+| GET | `/api/health` | Compact Wi-Fi + link health |
+
+CORS `*` is enabled on `/api/*` for the React dev app.
+
+---
+
+## `/api/status` fields
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `ok` | bool | Last refresh had all Modbus batches OK |
+| `ageMs` | number | ms since last successful refresh attempt |
+| `slaveId` | number | Selected Modbus slave |
+| `rssi` | number | STA RSSI (0 on AP-only) |
+| `wifiMode` | string | `AP` / `STA` / `AP+STA` / `off` |
+| `wifiIp` | string | Preferred IP for clients |
+| `uptimeMs` | number | Device uptime |
+| `lastError` | string | Last refresh error (may be empty) |
+| `link` | string | `ok` \| `degraded` \| `fail` \| `unknown` |
+| `headline` | string | `Running` / `Stopped` / `Alarm` / … |
+| `opMode` | `{code,name}` or null | Register 772 |
+| `engStatus` | `{code,name}` or null | Register 1408 |
+| `engRpm`, `batteryV`, `genFreq` | number or null | Scaled |
+| `genVan`/`genVbn`/`genVcn` | number or null | Line-neutral V |
+| `genIa`/`genIb`/`genIc` | number or null | Phase A |
+| `genPTotW`, `genPTotKw`, `genPctKw` | number or null | Power / load |
+| `alarms` | array | Active alarm slots only |
+
+Scaling matches the firmware DSE map (`dse7320_registers`) — same as CLI `get` / `iterate`.
+
+Refresh interval ≈ **2.5 s** from `Telemetry::poll()` in `loop()`.
+
+---
+
+## React app (`web/`)
+
+```bash
+cd web
+pnpm install
+pnpm dev          # proxy to gateway
+pnpm dev:mock     # mock JSON (no hardware)
+```
+
+Dev server proxies `/api` to `VITE_GW_URL` (default `http://192.168.4.1`) or uses mock via `pnpm dev:mock`.
+
+See [`web/README.md`](../../web/README.md).

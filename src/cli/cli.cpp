@@ -54,6 +54,9 @@ void Cli::printBanner() {
 #if defined(GATEWAY_LITE)
   Serial.println(F("Build: GATEWAY_LITE (Modbus diagnostics; no DSE named map)"));
 #endif
+#if defined(ARDUINO_ARCH_ESP32)
+  Serial.println(F("Web UI: soft-AP DSE-GW-XXXX → http://192.168.4.1/"));
+#endif
   Serial.println(F("Phase 2A diagnostics enabled via CLI"));
   Serial.println();
   Serial.print(F("Selected: "));

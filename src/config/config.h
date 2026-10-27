@@ -111,3 +111,23 @@
 #ifndef USB_SERIAL_BAUD
 #define USB_SERIAL_BAUD 115200
 #endif
+
+// ---------------------------------------------------------------------------
+// Wi-Fi / local web UI (ESP32-C3 only)
+// Soft-AP always starts. Optional STA: set WIFI_STA_SSID (non-empty) to join.
+// ---------------------------------------------------------------------------
+#ifndef WIFI_AP_SSID_PREFIX
+#define WIFI_AP_SSID_PREFIX "DSE-GW"
+#endif
+#ifndef WIFI_AP_PASSWORD
+#define WIFI_AP_PASSWORD "dsegateway"
+#endif
+#ifndef WIFI_STA_SSID
+#define WIFI_STA_SSID ""
+#endif
+#ifndef WIFI_STA_PASSWORD
+#define WIFI_STA_PASSWORD ""
+#endif
+#ifndef HTTP_SERVER_PORT
+#define HTTP_SERVER_PORT 80
+#endif

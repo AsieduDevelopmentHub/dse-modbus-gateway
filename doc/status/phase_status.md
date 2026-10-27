@@ -1,8 +1,8 @@
 # DSE 7320 Modbus RTU — Current Phase Status
 
-**Date:** 2026-08-10  
+**Date:** 2026-10-20  
 **Project:** `dse7320_rtu`  
-**Phase:** PHASE 2A — IN PROGRESS (RS485 / Modbus diagnostics)
+**Phase:** PHASE 3A — IN PROGRESS (local web UI + JSON API)
 
 ---
 
@@ -11,42 +11,31 @@
 | Phase | Status |
 |-------|--------|
 | Phase 1 — USB CDC + Modbus CLI | COMPLETE |
-| Phase 2 — Live CRC-valid ET1641 frame | **NOT COMPLETE** |
-| Phase 2A — Firmware/protocol diagnostics | **IN PROGRESS** |
+| Phase 2 — Live CRC-valid ET1641 / DSE frame | NOT COMPLETE (lab RO-level risk on ESP32) |
+| Phase 2A — Firmware/protocol diagnostics | COMPLETE (CLI tools remain) |
+| Phase 3A — ESP32 Wi-Fi API + overview UI | **IN PROGRESS** |
 
-Do **not** declare physical Modbus success until a CRC-valid ET1641 frame is captured.
+Do **not** declare physical Modbus success until a CRC-valid frame is captured on the live bus. The web UI shows last-good / fail state when Modbus refresh fails.
 
-Observed so far: TX frames are correct; some RX buffers show `32 84 02 ?? ??` with **invalid CRC** (often after A/B experiments). Invalid-CRC frames must **not** be treated as Modbus exceptions.
+---
+
+## Phase 3A deliverables
+
+- Soft-AP `DSE-GW-XXXX` + `GET /`, `/api/status`, `/api/health`
+- Telemetry snapshot (mode, RPM, battery, V/A/kW, alarms)
+- React app in `web/` (same JSON contract + mock)
+- Guide: [doc/guide/web_ui.md](../guide/web_ui.md)
 
 ---
 
 ## Hardware (lab)
 
 - ESP32-C3 SuperMini, UART1: RX20 / TX21 / DE·RE GPIO4  
-- MAX485 powered from **ESP32-C3 3.3V** (document accurately; no hardware redesign in 2A)  
-- USB CDC (CLI) and UART1 (RS485) are separate  
-
----
-
-## Phase 2A diagnostic commands
-
-```text
-crc-test
-diagnostic on|off
-rawread 50 04 0000 1
-rawread 50 03 0000 1
-repeat 20 50 04 0000 1
-config
-```
-
-CRC self-test vectors (offline):
-
-- `32 03 00 00 00 01 81 C9`
-- `32 04 00 00 00 01 34 09`
-- `32 84 02 32 CE`
+- MAX485: prefer 5V VCC; **RO → ESP32 still needs level shift or 3.3V transceiver**  
+- Arduino Mega 2560: 5V isolation bench with full DSE named map  
 
 ---
 
 ## Architecture
 
-Multi-device master remains: DSE7320 (ID10) + ET1641 (ID50). DSE is not replaced.
+Multi-device master remains: DSE7320 + ET1641. USB CLI and HTTP run together on ESP32.

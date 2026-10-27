@@ -7,3 +7,6 @@
 .DS_Store
 gpt.md
 _crops/
+web/node_modules/
+web/dist/
+web/package-lock.json

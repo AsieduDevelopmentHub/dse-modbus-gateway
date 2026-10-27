@@ -5,6 +5,12 @@
 #include "modbus/modbus_client.h"
 #include "rs485/rs485.h"
 
+#if defined(ARDUINO_ARCH_ESP32)
+#include "net/http_api.h"
+#include "net/wifi_portal.h"
+#include "telemetry/snapshot.h"
+#endif
+
 void setup() {
   Serial.begin(USB_SERIAL_BAUD);
 #if defined(ARDUINO_ARCH_ESP32)
@@ -15,6 +21,12 @@ void setup() {
   rs485.begin();
   modbus.begin();
   cli.begin();  // may print into the void if monitor not open yet — OK
+
+#if defined(ARDUINO_ARCH_ESP32)
+  Telemetry::begin();
+  WifiPortal::begin();
+  HttpApi::begin();
+#endif
 }
 
 void loop() {
@@ -37,6 +49,10 @@ void loop() {
   } else if (bannerShown && (millis() - lastHostOpenMs) > 3000) {
     bannerShown = false;
   }
+
+  WifiPortal::poll();
+  HttpApi::poll();
+  Telemetry::poll();
 #endif
 
   // Always poll RX — do not gate on Serial bool (flicker drops keystrokes).
