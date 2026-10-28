@@ -7,14 +7,11 @@
 #include <SoftwareSerial.h>
 #endif
 
-// MAX485 + UART direction control.
-// DE/RE: HIGH=TX, LOW=RX (tie DE and RE together on the module).
+// Half-duplex RS485 + UART direction control (THVD1450DR / MAX485-class).
+// DE/RE: HIGH=TX, LOW=RX (tie DE and /RE together on the transceiver).
 //
-// ESP32-C3 WARNING: Powering MAX485 from the board 5V pin does NOT fix
-// RO → MCU RX. With VCC=5V, RO still drives ~5V into a 3.3V GPIO and can
-// corrupt trailing CRC bytes while leaving the frame prefix readable.
-// Use a 5V Arduino (Mega/Uno/Nano) or a level shifter / 3.3V transceiver
-// to isolate that failure mode.
+// ESP32-C3: prefer THVD1450 (3.3V RO). MAX485 with VCC=5V still drives ~5V
+// into a 3.3V GPIO and can corrupt trailing CRC bytes.
 
 class Rs485Bus {
 public:
@@ -41,6 +38,11 @@ public:
   uint8_t parity() const { return _parity; }
   uint8_t stopBits() const { return _stopBits; }
 
+  uint32_t txSettleUs() const { return _txSettleUs; }
+  uint32_t txPreDelayUs() const { return _txPreDelayUs; }
+  void setTxSettleUs(uint32_t us) { _txSettleUs = us; }
+  void setTxPreDelayUs(uint32_t us) { _txPreDelayUs = us; }
+
 private:
 #if defined(ARDUINO_ARCH_ESP32)
   static SerialConfig makeSerialConfig(uint8_t dataBits, uint8_t parity,
@@ -65,6 +67,8 @@ private:
   uint8_t _dataBits = MODBUS_DATA_BITS;
   uint8_t _parity = MODBUS_PARITY;
   uint8_t _stopBits = MODBUS_STOP_BITS;
+  uint32_t _txSettleUs = RS485_TX_SETTLE_US;
+  uint32_t _txPreDelayUs = RS485_TX_PRE_DELAY_US;
 };
 
 extern Rs485Bus rs485;

@@ -454,8 +454,12 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
     Serial.println(tDone);
     Serial.print(F("DE->RX us: "));
     Serial.println(tDeLow);
+    Serial.print(F("TX settle us (config): "));
+    Serial.println(rs485.txSettleUs());
   }
 
+  // With DE+/RE tied (THVD1450), receiver was off during TX — usually no echo.
+  // Flush only residual noise before the slave's inter-frame gap ends.
   const size_t echoN = rs485.flushRxCounted(nullptr, 0);
   if (!quiet && echoN) {
     Serial.print(F("TX-echo bytes dropped: "));

@@ -50,19 +50,22 @@
 #endif
 #define BOARD_NAME "ESP32-C3 SuperMini"
 #define RS485_UART_LABEL "UART1"
+// Do NOT use GPIO20/21 for RS485 on C3 SuperMini: they collide with UART0 /
+// USB console and commonly corrupt trailing RX bytes (CRC) while leaving the
+// frame prefix readable. Prefer UART1 on free pins (newbiely / Espressif).
 #ifndef RS485_RX_PIN
-#define RS485_RX_PIN 20
+#define RS485_RX_PIN 7
 #endif
 #ifndef RS485_TX_PIN
-#define RS485_TX_PIN 21
+#define RS485_TX_PIN 6
 #endif
 #ifndef RS485_DE_RE_PIN
 #define RS485_DE_RE_PIN 4
 #endif
-// CRITICAL: VCC=5V does NOT make RO safe for ESP32-C3. RO still swings ~5V
-// into a 3.3V-only GPIO and can corrupt the last bytes (CRC) of a frame.
-#define MAX485_VCC_NOTE "5V VBUS preferred for MAX485 VCC (not 3.3V)"
-#define MAX485_RO_NOTE "RISK: RO is 5V-domain — ESP32-C3 GPIO is 3.3V only"
+// Prefer a 3.3V transceiver (THVD1450DR) on ESP32-C3. MAX485 RO at 5V VCC
+// still swings ~5V into a 3.3V-only GPIO and can corrupt trailing CRC bytes.
+#define MAX485_VCC_NOTE "THVD1450: 3.3V VCC OK; MAX485: 5V VBUS preferred"
+#define MAX485_RO_NOTE "THVD1450 RO is 3.3V-safe; MAX485 RO is 5V-domain RISK"
 #endif
 
 // Hardware UART index (ESP32 only; Mega uses Serial1 object)
@@ -101,10 +104,17 @@
 #define MODBUS_RESPONSE_TIMEOUT_MS 1000
 #endif
 
-// Post-TX turnaround before switching to RX (MAX485 settle).
-// At 9600 baud, ~1 char ≈ 1 ms; allow a few character times.
+// Post-TX turnaround before DE→RX. Keep this SHORT: Modbus slaves may reply
+// after ~3.5 character times (~3.5 ms @ 9600). Holding DE high that long
+// causes bus contention and CRC garbage. THVD1450 disables in tens of ns;
+// a few character-bit times of margin is enough after uart_wait_tx_done.
 #ifndef RS485_TX_SETTLE_US
-#define RS485_TX_SETTLE_US 3500
+#define RS485_TX_SETTLE_US 200
+#endif
+
+// Brief pause after DE assert before first TX byte (driver enable).
+#ifndef RS485_TX_PRE_DELAY_US
+#define RS485_TX_PRE_DELAY_US 50
 #endif
 
 // USB Serial (CLI) — baud ignored on native USB CDC (ESP32-C3)

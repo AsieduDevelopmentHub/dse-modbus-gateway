@@ -85,6 +85,7 @@ void Cli::printHelp() {
   Serial.println(F("  alarms                             (active alarms only)"));
   Serial.println(F("  scf list|flags|<cmd>|raw <key>     (DSE control write)"));
   Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
+  Serial.println(F("  set settle <us> | set predelay <us>   (RS485 DE timing)"));
   Serial.println(F("  read <addr> <qty> | readhex <hex> <qty>"));
   Serial.println(F("  rawread <slave> <fc> <hex_addr> <qty>"));
   Serial.println(F("  rs485raw <slave> <fc> <hex_addr> <qty>"));
@@ -97,7 +98,7 @@ void Cli::printHelp() {
   Serial.println(F("  iterate | iterate basic | iterate 3 power"));
   Serial.println(F("  watch | watch 8"));
   Serial.println(F("  get battery_v | get eng_rpm | get eng_status"));
-  Serial.println(F("  set slave 1 | set baud 9600"));
+  Serial.println(F("  set slave 1 | set baud 9600 | set settle 200"));
   Serial.println(F("  scf flags | scf auto | scf telemetry_start"));
 }
 
@@ -154,7 +155,11 @@ void Cli::printConfig() {
   Serial.println(RS485_TX_PIN);
   Serial.print(F("DE/RE pin: "));
   Serial.println(RS485_DE_RE_PIN);
-  Serial.print(F("MAX485 VCC: "));
+  Serial.print(F("TX settle us: "));
+  Serial.println(rs485.txSettleUs());
+  Serial.print(F("TX predelay us: "));
+  Serial.println(rs485.txPreDelayUs());
+  Serial.print(F("RS485 VCC: "));
   Serial.println(F(MAX485_VCC_NOTE));
   Serial.print(F("RO note: "));
   Serial.println(F(MAX485_RO_NOTE));
@@ -213,8 +218,8 @@ void Cli::cmdSet(char *args) {
   char *tok = strtok(args, " \t");
   char *val = strtok(nullptr, " \t");
   if (!tok || !val) {
-    Serial.println(
-        F("Usage: set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
+    Serial.println(F(
+        "Usage: set slave|fc|baud|settle|predelay <value>"));
     return;
   }
   if (strcasecmp(tok, "slave") == 0) {
@@ -251,6 +256,30 @@ void Cli::cmdSet(char *args) {
     Serial.print(F("UART baud set to "));
     Serial.print(_baudRate);
     Serial.println(F(" (runtime override; device select resets to profile)"));
+    return;
+  }
+  if (strcasecmp(tok, "settle") == 0) {
+    const long us = strtol(val, nullptr, 10);
+    if (us < 0 || us > 20000) {
+      Serial.println(F("ERROR: settle must be 0..20000 us"));
+      return;
+    }
+    rs485.setTxSettleUs(static_cast<uint32_t>(us));
+    Serial.print(F("TX settle set to "));
+    Serial.print(us);
+    Serial.println(F(" us (post uart_wait_tx_done, before DE->RX)"));
+    return;
+  }
+  if (strcasecmp(tok, "predelay") == 0) {
+    const long us = strtol(val, nullptr, 10);
+    if (us < 0 || us > 5000) {
+      Serial.println(F("ERROR: predelay must be 0..5000 us"));
+      return;
+    }
+    rs485.setTxPreDelayUs(static_cast<uint32_t>(us));
+    Serial.print(F("TX predelay set to "));
+    Serial.print(us);
+    Serial.println(F(" us (after DE assert, before write)"));
     return;
   }
   Serial.println(F("Unknown set target"));

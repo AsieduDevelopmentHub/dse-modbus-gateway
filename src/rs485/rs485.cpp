@@ -131,6 +131,9 @@ size_t Rs485Bus::transmit(const uint8_t *data, size_t len,
                           uint32_t *outTxStartUs, uint32_t *outTxCompleteUs,
                           uint32_t *outDeLowUs) {
   setTransmitMode();
+  if (_txPreDelayUs > 0) {
+    delayMicroseconds(_txPreDelayUs);
+  }
   const uint32_t t0 = micros();
   if (outTxStartUs) {
     *outTxStartUs = t0;
@@ -138,7 +141,9 @@ size_t Rs485Bus::transmit(const uint8_t *data, size_t len,
 
   const size_t written = stream().write(data, len);
   waitTxComplete();
-  delayMicroseconds(RS485_TX_SETTLE_US);
+  if (_txSettleUs > 0) {
+    delayMicroseconds(_txSettleUs);
+  }
 
   const uint32_t t1 = micros();
   if (outTxCompleteUs) {
