@@ -14,6 +14,7 @@ namespace {
 
 TelemetrySnapshot gSnap;
 uint32_t gLastRefreshMs = 0;
+bool gAutoRefresh = false;  // CLI owns the bus until "set telemetry on"
 constexpr uint32_t kRefreshIntervalMs = 2500;
 
 void setErr(const char *msg) {
@@ -246,12 +247,22 @@ void setWifiInfo(const char *mode, const char *ip, int8_t rssi) {
   gSnap.rssi = rssi;
 }
 
+void setAutoRefresh(bool enabled) { gAutoRefresh = enabled; }
+
+bool autoRefresh() { return gAutoRefresh; }
+
 void poll() {
   const uint32_t now = millis();
   gSnap.ageMs =
       gSnap.refreshedAtMs ? (now - gSnap.refreshedAtMs) : 0;
   gSnap.uptimeMs = now;
-  if (gSnap.busy) {
+  // DSE map reads against the ET1641 block the CLI for seconds and collide
+  // with bench probes. Auto-refresh stays off until explicitly enabled,
+  // and only runs against the DSE profile.
+  if (!gAutoRefresh || gSnap.busy) {
+    return;
+  }
+  if (strcmp(devices.selected().id, "dse7320") != 0) {
     return;
   }
   if (gLastRefreshMs != 0 && (now - gLastRefreshMs) < kRefreshIntervalMs) {

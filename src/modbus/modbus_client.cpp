@@ -6,6 +6,42 @@
 #include "modbus/modbus_crc.h"
 #include "rs485/rs485.h"
 
+namespace {
+
+struct RxByteTiming {
+  uint16_t gapUs[64];
+  uint8_t count;
+  uint32_t charUs;
+};
+
+RxByteTiming gRxTiming;
+
+uint32_t charTimeUs() {
+  uint32_t baud = rs485.baud();
+  if (baud < 300) {
+    baud = 9600;
+  }
+  return (11UL * 1000000UL + baud - 1) / baud;
+}
+
+void printRxGaps() {
+  Serial.print(F("RX char us: "));
+  Serial.println(gRxTiming.charUs);
+  Serial.print(F("RX gaps us:"));
+  if (gRxTiming.count == 0) {
+    Serial.println(F(" (none)"));
+    return;
+  }
+  for (uint8_t i = 0; i < gRxTiming.count; i++) {
+    Serial.print(' ');
+    Serial.print(gRxTiming.gapUs[i]);
+  }
+  Serial.println();
+  Serial.println(F("(gap >= 1.5 char splits noise off the frame)"));
+}
+
+}  // namespace
+
 ModbusClient modbus;
 
 void ModbusClient::begin() {}
@@ -167,36 +203,78 @@ bool ModbusClient::runCrcSelfTest() {
 
 size_t ModbusClient::collectRx(uint8_t *buf, size_t bufMax, uint32_t timeoutMs,
                                uint32_t *outFirstByteMs) {
-  const uint32_t frameSilenceMs = 5;
-  const uint32_t start = millis();
-  size_t got = 0;
-  bool saw = false;
-  uint32_t lastMs = 0;
+  const uint32_t charUs = charTimeUs();
+  const uint32_t splitUs = (charUs * 3) / 2;  // Modbus t1.5
+  const uint32_t eofUs = charUs * 4;          // ~t3.5 end of frame
+  gRxTiming.charUs = charUs;
+  gRxTiming.count = 0;
   if (outFirstByteMs) {
     *outFirstByteMs = 0;
   }
+  if (!buf || bufMax == 0) {
+    return 0;
+  }
 
-  while ((millis() - start) < timeoutMs) {
-    bool gotByte = false;
-    while (rs485.stream().available() && got < bufMax) {
-      buf[got++] = static_cast<uint8_t>(rs485.stream().read());
-      if (!saw && outFirstByteMs) {
-        *outFirstByteMs = millis() - start;
+  uint8_t raw[64];
+  uint16_t gaps[64];
+  const size_t rawMax = sizeof(raw) < bufMax ? sizeof(raw) : bufMax;
+  size_t n = 0;
+  const uint32_t startMs = millis();
+  uint32_t lastByteUs = 0;
+  bool saw = false;
+  uint32_t spins = 0;
+
+  while ((millis() - startMs) < timeoutMs && n < rawMax) {
+    while (rs485.stream().available() && n < rawMax) {
+      const uint32_t nowUs = micros();
+      uint32_t gap = 0;
+      if (!saw) {
+        gap = (millis() - startMs) * 1000UL;
+        if (outFirstByteMs) {
+          *outFirstByteMs = millis() - startMs;
+        }
+      } else {
+        gap = nowUs - lastByteUs;
       }
-      lastMs = millis();
+      lastByteUs = nowUs;
       saw = true;
-      gotByte = true;
+      gaps[n] = gap > 65535UL ? 65535 : static_cast<uint16_t>(gap);
+      raw[n++] = static_cast<uint8_t>(rs485.stream().read());
     }
-    if (saw && !gotByte && (millis() - lastMs) >= frameSilenceMs) {
+    if (saw && (micros() - lastByteUs) >= eofUs) {
+      // Short leading glitch: keep waiting for the real frame.
+      if (n >= 4) {
+        break;
+      }
+    }
+    if ((++spins & 31u) == 0) {
+      yield();
+    } else {
+      delayMicroseconds(30);
+    }
+  }
+
+  size_t begin = 0;
+  for (size_t i = 1; i < n; i++) {
+    if (gaps[i] >= splitUs && (i - begin) < 4 && (n - i) > (i - begin)) {
+      begin = i;
+    }
+  }
+  size_t end = n;
+  for (size_t i = begin + 1; i < n; i++) {
+    if (gaps[i] >= splitUs) {
+      end = i;
       break;
     }
-    delay(1);
   }
-  delay(2);
-  while (rs485.stream().available() && got < bufMax) {
-    buf[got++] = static_cast<uint8_t>(rs485.stream().read());
+
+  const size_t len = end - begin;
+  memcpy(buf, raw + begin, len);
+  gRxTiming.count = static_cast<uint8_t>(len > 64 ? 64 : len);
+  for (uint8_t i = 0; i < gRxTiming.count; i++) {
+    gRxTiming.gapUs[i] = gaps[begin + i];
   }
-  return got;
+  return len;
 }
 
 RawRs485Capture ModbusClient::rawCapture(uint8_t slaveId, uint8_t functionCode,
@@ -263,6 +341,7 @@ RawRs485Capture ModbusClient::rawCapture(uint8_t slaveId, uint8_t functionCode,
   }
   Serial.print(F("RX LENGTH: "));
   Serial.println(cap.rxLen);
+  printRxGaps();
   Serial.print(F("Time to first RX byte: "));
   Serial.print(cap.tFirstRxMs);
   Serial.println(F(" ms"));
@@ -491,6 +570,7 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
     printHexLine("", resp.rawRx, got);
     Serial.print(F("RX length: "));
     Serial.println(got);
+    printRxGaps();
     Serial.print(F("Time to first RX byte: "));
     Serial.print(firstMs);
     Serial.println(F(" ms"));

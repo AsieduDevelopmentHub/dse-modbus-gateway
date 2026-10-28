@@ -62,6 +62,7 @@ void begin() {
       WIFI_STA_SSID[0] != '\0' && strlen(WIFI_STA_SSID) > 0;
 
   WiFi.persistent(false);
+  WiFi.setSleep(false);
   if (wantSta) {
     WiFi.mode(WIFI_AP_STA);
     WiFi.begin(WIFI_STA_SSID, WIFI_STA_PASSWORD);

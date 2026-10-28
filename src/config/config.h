@@ -50,14 +50,13 @@
 #endif
 #define BOARD_NAME "ESP32-C3 SuperMini"
 #define RS485_UART_LABEL "UART1"
-// Do NOT use GPIO20/21 for RS485 on C3 SuperMini: they collide with UART0 /
-// USB console and commonly corrupt trailing RX bytes (CRC) while leaving the
-// frame prefix readable. Prefer UART1 on free pins (newbiely / Espressif).
+// Match doc/guide/getting_started.md. GPIO6/7 was tried and timed out on
+// this bench because the transceiver stays on 20/21/4.
 #ifndef RS485_RX_PIN
-#define RS485_RX_PIN 7
+#define RS485_RX_PIN 20
 #endif
 #ifndef RS485_TX_PIN
-#define RS485_TX_PIN 6
+#define RS485_TX_PIN 21
 #endif
 #ifndef RS485_DE_RE_PIN
 #define RS485_DE_RE_PIN 4

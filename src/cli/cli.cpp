@@ -11,6 +11,9 @@
 #include "modbus/modbus_crc.h"
 #include "rs485/rs485.h"
 #include "util/str_util.h"
+#if defined(ARDUINO_ARCH_ESP32)
+#include "telemetry/snapshot.h"
+#endif
 
 #define strcasecmp strEqualsIgnoreCase
 
@@ -38,9 +41,9 @@ ModbusTxnInfo Cli::makeTxnInfo() const {
   info.deviceName = d.name;
   info.deviceSerial = d.serial;
   info.baud = _baudRate;
-  info.dataBits = d.dataBits;
-  info.parity = d.parity;
-  info.stopBits = d.stopBits;
+  info.dataBits = rs485.dataBits();
+  info.parity = rs485.parity();
+  info.stopBits = rs485.stopBits();
   return info;
 }
 
@@ -85,7 +88,9 @@ void Cli::printHelp() {
   Serial.println(F("  alarms                             (active alarms only)"));
   Serial.println(F("  scf list|flags|<cmd>|raw <key>     (DSE control write)"));
   Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
+  Serial.println(F("  set parity <none|even|odd>"));
   Serial.println(F("  set settle <us> | set predelay <us>   (RS485 DE timing)"));
+  Serial.println(F("  set telemetry on|off                  (DSE web poll; default off)"));
   Serial.println(F("  read <addr> <qty> | readhex <hex> <qty>"));
   Serial.println(F("  rawread <slave> <fc> <hex_addr> <qty>"));
   Serial.println(F("  rs485raw <slave> <fc> <hex_addr> <qty>"));
@@ -250,9 +255,9 @@ void Cli::cmdSet(char *args) {
       Serial.println(F("ERROR: baud must be 4800, 9600, or 19200"));
       return;
     }
-    const ModbusDeviceConfig &d = devices.selected();
     _baudRate = static_cast<uint32_t>(baud);
-    rs485.applyConfig(_baudRate, d.dataBits, d.parity, d.stopBits);
+    rs485.applyConfig(_baudRate, rs485.dataBits(), rs485.parity(),
+                      rs485.stopBits());
     Serial.print(F("UART baud set to "));
     Serial.print(_baudRate);
     Serial.println(F(" (runtime override; device select resets to profile)"));
@@ -282,6 +287,38 @@ void Cli::cmdSet(char *args) {
     Serial.println(F(" us (after DE assert, before write)"));
     return;
   }
+  if (strcasecmp(tok, "parity") == 0) {
+    uint8_t parity = 0;
+    if (strcasecmp(val, "none") == 0 || strcmp(val, "0") == 0) {
+      parity = 0;
+    } else if (strcasecmp(val, "odd") == 0 || strcmp(val, "1") == 0) {
+      parity = 1;
+    } else if (strcasecmp(val, "even") == 0 || strcmp(val, "2") == 0) {
+      parity = 2;
+    } else {
+      Serial.println(F("ERROR: parity must be none, even, or odd"));
+      return;
+    }
+    rs485.applyConfig(rs485.baud(), rs485.dataBits(), parity, rs485.stopBits());
+    Serial.print(F("Parity set to "));
+    Serial.println(DeviceRegistry::parityName(parity));
+    return;
+  }
+#if defined(ARDUINO_ARCH_ESP32)
+  if (strcasecmp(tok, "telemetry") == 0) {
+    if (strcasecmp(val, "on") == 0) {
+      Telemetry::setAutoRefresh(true);
+    } else if (strcasecmp(val, "off") == 0) {
+      Telemetry::setAutoRefresh(false);
+    } else {
+      Serial.println(F("Usage: set telemetry on|off"));
+      return;
+    }
+    Serial.print(F("Telemetry auto-refresh: "));
+    Serial.println(Telemetry::autoRefresh() ? F("ON") : F("OFF"));
+    return;
+  }
+#endif
   Serial.println(F("Unknown set target"));
 }
 

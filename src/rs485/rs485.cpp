@@ -76,8 +76,15 @@ void Rs485Bus::applyConfig(uint32_t baud, uint8_t dataBits, uint8_t parity,
   _hw.end();
   delay(10);
 #if defined(ARDUINO_ARCH_ESP32)
+  // rxfifo threshold 3: IDF corrupts short frames when the RX-full IRQ is
+  // armed at 1 byte. Timeout of 1 symbol releases a short Modbus frame
+  // after ~1 character of idle without waiting for a 120-byte FIFO.
   _hw.begin(baud, makeSerialConfig(dataBits, parity, stopBits), RS485_RX_PIN,
-            RS485_TX_PIN);
+            RS485_TX_PIN, false, 20000UL, 3);
+  _hw.setRxFIFOFull(3);
+  _hw.setRxTimeout(1);
+  pinMode(RS485_RX_PIN, INPUT_PULLUP);
+  uart_flush_input(static_cast<uart_port_t>(RS485_UART_NUM));
 #else
   _hw.begin(baud, makeSerialConfig(dataBits, parity, stopBits));
 #endif
@@ -155,6 +162,11 @@ size_t Rs485Bus::transmit(const uint8_t *data, size_t len,
   if (outDeLowUs) {
     *outDeLowUs = t2;
   }
+
+  // Drop the DE-falling glitch if it is already in the FIFO. Slave replies
+  // on this bench are ~13 ms later, so a short flush does not eat them.
+  delayMicroseconds(400);
+  flushRx();
 
   return written;
 }

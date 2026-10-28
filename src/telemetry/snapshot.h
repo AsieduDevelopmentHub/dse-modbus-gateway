@@ -66,6 +66,8 @@ namespace Telemetry {
 
 void begin();
 void poll();  // call from loop(); refreshes every few seconds when idle
+void setAutoRefresh(bool enabled);
+bool autoRefresh();
 const TelemetrySnapshot &get();
 void setWifiInfo(const char *mode, const char *ip, int8_t rssi);
 
