@@ -37,7 +37,7 @@ void printRxGaps() {
     Serial.print(gRxTiming.gapUs[i]);
   }
   Serial.println();
-  Serial.println(F("(gap >= 1.5 char splits noise off the frame)"));
+  Serial.println(F("(only a gap >= 8 char splits a second burst)"));
 }
 
 }  // namespace
@@ -204,8 +204,10 @@ bool ModbusClient::runCrcSelfTest() {
 size_t ModbusClient::collectRx(uint8_t *buf, size_t bufMax, uint32_t timeoutMs,
                                uint32_t *outFirstByteMs) {
   const uint32_t charUs = charTimeUs();
-  const uint32_t splitUs = (charUs * 3) / 2;  // Modbus t1.5
-  const uint32_t eofUs = charUs * 4;          // ~t3.5 end of frame
+  // Software gaps are dequeue time, not wire time. The UART can release the
+  // CRC a few milliseconds after the header. Only a long pause is a new burst.
+  const uint32_t splitUs = charUs * 8;
+  const uint32_t eofUs = charUs * 8;
   gRxTiming.charUs = charUs;
   gRxTiming.count = 0;
   if (outFirstByteMs) {
@@ -242,8 +244,8 @@ size_t ModbusClient::collectRx(uint8_t *buf, size_t bufMax, uint32_t timeoutMs,
       raw[n++] = static_cast<uint8_t>(rs485.stream().read());
     }
     if (saw && (micros() - lastByteUs) >= eofUs) {
-      // Short leading glitch: keep waiting for the real frame.
-      if (n >= 4) {
+      // A 1-byte DE glitch is not the frame. Keep waiting for the reply.
+      if (n >= 3) {
         break;
       }
     }

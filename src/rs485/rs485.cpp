@@ -76,13 +76,14 @@ void Rs485Bus::applyConfig(uint32_t baud, uint8_t dataBits, uint8_t parity,
   _hw.end();
   delay(10);
 #if defined(ARDUINO_ARCH_ESP32)
-  // rxfifo threshold 3: IDF corrupts short frames when the RX-full IRQ is
-  // armed at 1 byte. Timeout of 1 symbol releases a short Modbus frame
-  // after ~1 character of idle without waiting for a 120-byte FIFO.
+  // Hold the whole short Modbus frame in the FIFO and release it on idle.
+  // A full-threshold of 3 delivers the header immediately and the CRC a
+  // millisecond later; software then treats that pause as a gap and drops
+  // the CRC. Timeout is in symbol periods (~1.1 ms at 9600).
   _hw.begin(baud, makeSerialConfig(dataBits, parity, stopBits), RS485_RX_PIN,
-            RS485_TX_PIN, false, 20000UL, 3);
-  _hw.setRxFIFOFull(3);
-  _hw.setRxTimeout(1);
+            RS485_TX_PIN, false, 20000UL, 120);
+  _hw.setRxFIFOFull(120);
+  _hw.setRxTimeout(3);
   pinMode(RS485_RX_PIN, INPUT_PULLUP);
   uart_flush_input(static_cast<uart_port_t>(RS485_UART_NUM));
 #else
