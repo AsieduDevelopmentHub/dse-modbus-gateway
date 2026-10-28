@@ -76,14 +76,13 @@ void Rs485Bus::applyConfig(uint32_t baud, uint8_t dataBits, uint8_t parity,
   _hw.end();
   delay(10);
 #if defined(ARDUINO_ARCH_ESP32)
-  // Hold the whole short Modbus frame in the FIFO and release it on idle.
-  // A full-threshold of 3 delivers the header immediately and the CRC a
-  // millisecond later; software then treats that pause as a gap and drops
-  // the CRC. Timeout is in symbol periods (~1.1 ms at 9600).
+  // One-byte FIFO so each RX byte is visible as it arrives. Gaps then
+  // match the wire (~1.1 ms at 9600). A 120-byte FIFO hides that and made
+  // trailing noise look like CRC bytes.
   _hw.begin(baud, makeSerialConfig(dataBits, parity, stopBits), RS485_RX_PIN,
-            RS485_TX_PIN, false, 20000UL, 120);
-  _hw.setRxFIFOFull(120);
-  _hw.setRxTimeout(3);
+            RS485_TX_PIN, false, 20000UL, 1);
+  _hw.setRxFIFOFull(1);
+  _hw.setRxTimeout(2);
   pinMode(RS485_RX_PIN, INPUT_PULLUP);
   uart_flush_input(static_cast<uart_port_t>(RS485_UART_NUM));
 #else

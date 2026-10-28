@@ -13,6 +13,7 @@
 #include "util/str_util.h"
 #if defined(ARDUINO_ARCH_ESP32)
 #include "telemetry/snapshot.h"
+#include <WiFi.h>
 #endif
 
 #define strcasecmp strEqualsIgnoreCase
@@ -98,6 +99,8 @@ void Cli::printHelp() {
   Serial.println(F("  crc-test"));
   Serial.println(F("  diagnostic on|off"));
   Serial.println(F("  repeat <n> <slave> <fc> <hex_addr> <qty>"));
+  Serial.println(F("  dcem                               (ET1641 format + address scan)"));
+  Serial.println(F("  envolt [slave]                     (EN-Volt register image scan)"));
   Serial.println();
   Serial.println(F("DSE examples:"));
   Serial.println(F("  iterate | iterate basic | iterate 3 power"));
@@ -1103,6 +1106,457 @@ void Cli::cmdRepeat(char *args) {
   Serial.println(other);
 }
 
+namespace {
+
+bool frameStable(const ModbusResponse &a, const ModbusResponse &b) {
+  if (a.rawRxLen < 3 || a.rawRxLen != b.rawRxLen) {
+    return false;
+  }
+  return memcmp(a.rawRx, b.rawRx, a.rawRxLen) == 0;
+}
+
+bool illegalAddressShape(const ModbusResponse &r, uint8_t slave, uint8_t fc) {
+  return r.rawRxLen >= 3 && r.rawRx[0] == slave &&
+         r.rawRx[1] == static_cast<uint8_t>(fc | 0x80) && r.rawRx[2] == 0x02;
+}
+
+void printRaw(const uint8_t *data, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    if (data[i] < 0x10) {
+      Serial.print('0');
+    }
+    Serial.print(data[i], HEX);
+    if (i + 1 < len) {
+      Serial.print(' ');
+    }
+  }
+}
+
+}  // namespace
+
+void Cli::cmdDcem(char *args) {
+  (void)args;
+  const uint8_t slave = _slaveId;
+#if defined(ARDUINO_ARCH_ESP32)
+  WiFi.mode(WIFI_OFF);
+  Serial.println(F("WiFi radio OFF for this scan (reset the board to bring the AP back)"));
+#endif
+  Serial.println(F("## ET1641 FORMAT SEARCH"));
+  Serial.print(F("Slave "));
+  Serial.println(slave);
+
+  struct Trial {
+    uint32_t baud;
+    uint8_t parity;
+    const char *name;
+  };
+  const Trial trials[] = {
+      {9600, 0, "9600 8N1"},
+      {9600, 2, "9600 8E1"},
+      {9600, 1, "9600 8O1"},
+      {19200, 0, "19200 8N1"},
+      {19200, 2, "19200 8E1"},
+      {4800, 0, "4800 8N1"},
+  };
+
+  bool formatWon = false;
+  for (size_t t = 0; t < sizeof(trials) / sizeof(trials[0]); t++) {
+    _baudRate = trials[t].baud;
+    rs485.applyConfig(trials[t].baud, 8, trials[t].parity, 1);
+    delay(20);
+    uint8_t pass = 0;
+    ModbusTxnInfo info = makeTxnInfo();
+    info.quiet = true;
+    info.deviceName = "dcem";
+    for (uint8_t n = 0; n < 3; n++) {
+      const ModbusResponse r =
+          modbus.readRegisters(slave, 0x04, 0, 1, &info);
+      if (r.result == ModbusResult::Ok || r.result == ModbusResult::Exception) {
+        pass++;
+      }
+    }
+    Serial.print(trials[t].name);
+    Serial.print(F(": CRC-valid "));
+    Serial.print(pass);
+    Serial.println(F("/3"));
+    if (pass > 0) {
+      formatWon = true;
+      Serial.println(F("FORMAT LOCKED"));
+      break;
+    }
+  }
+  if (!formatWon) {
+    _baudRate = 9600;
+    rs485.applyConfig(9600, 8, 0, 1);
+    Serial.println(F("No CRC-valid header yet. Scanning addresses at 9600 8N1."));
+  }
+
+  static const uint16_t kExtra[] = {48, 50, 64, 100, 128, 200, 256, 512,
+                                     1000, 1024, 4000, 4096, 4100, 4101};
+  uint16_t pass = 0;
+  uint16_t stableData = 0;
+  uint16_t illegal = 0;
+  uint16_t unstable = 0;
+  uint16_t none = 0;
+
+  Serial.println(F("## ET1641 ADDRESS SCAN (qty 2, two reads)"));
+  for (uint8_t fc = 0x03; fc <= 0x04; fc++) {
+    for (uint16_t addr = 0; addr < 48; addr++) {
+      ModbusTxnInfo info = makeTxnInfo();
+      info.quiet = true;
+      info.deviceName = "dcem";
+      const ModbusResponse a =
+          modbus.readRegisters(slave, fc, addr, 2, &info);
+      const ModbusResponse b =
+          modbus.readRegisters(slave, fc, addr, 2, &info);
+      const bool ok = a.result == ModbusResult::Ok ||
+                      a.result == ModbusResult::Exception ||
+                      b.result == ModbusResult::Ok ||
+                      b.result == ModbusResult::Exception;
+      const bool stable = frameStable(a, b);
+      if (ok) {
+        pass++;
+        Serial.print(F("CRC PASS fc "));
+        if (fc < 0x10) {
+          Serial.print('0');
+        }
+        Serial.print(fc, HEX);
+        Serial.print(F(" addr "));
+        Serial.print(addr);
+        Serial.print(F(" rx "));
+        printRaw(a.rawRx, a.rawRxLen);
+        Serial.println();
+        if (a.result == ModbusResult::Ok) {
+          Serial.print(F("  value0=0x"));
+          Serial.println(a.values[0], HEX);
+        }
+      } else if (stable && illegalAddressShape(a, slave, fc)) {
+        illegal++;
+      } else if (stable && a.rawRxLen >= 3) {
+        stableData++;
+        Serial.print(F("STABLE fc "));
+        if (fc < 0x10) {
+          Serial.print('0');
+        }
+        Serial.print(fc, HEX);
+        Serial.print(F(" addr "));
+        Serial.print(addr);
+        Serial.print(F(" len "));
+        Serial.print(a.rawRxLen);
+        Serial.print(F(" rx "));
+        printRaw(a.rawRx, a.rawRxLen);
+        Serial.println();
+      } else if (a.rawRxLen == 0 && b.rawRxLen == 0) {
+        none++;
+      } else {
+        unstable++;
+      }
+      if ((addr & 15) == 0) {
+        yield();
+      }
+    }
+  }
+
+  for (size_t i = 0; i < sizeof(kExtra) / sizeof(kExtra[0]); i++) {
+    for (uint8_t fc = 0x03; fc <= 0x04; fc++) {
+      const uint16_t addr = kExtra[i];
+      ModbusTxnInfo info = makeTxnInfo();
+      info.quiet = true;
+      info.deviceName = "dcem";
+      const ModbusResponse a =
+          modbus.readRegisters(slave, fc, addr, 2, &info);
+      const ModbusResponse b =
+          modbus.readRegisters(slave, fc, addr, 2, &info);
+      const bool ok = a.result == ModbusResult::Ok ||
+                      a.result == ModbusResult::Exception ||
+                      b.result == ModbusResult::Ok ||
+                      b.result == ModbusResult::Exception;
+      if (ok) {
+        pass++;
+        Serial.print(F("CRC PASS fc "));
+        Serial.print(fc, HEX);
+        Serial.print(F(" addr "));
+        Serial.print(addr);
+        Serial.print(F(" rx "));
+        printRaw(a.rawRx, a.rawRxLen);
+        Serial.println();
+      } else if (frameStable(a, b) && a.rawRxLen >= 3 &&
+                 !illegalAddressShape(a, slave, fc)) {
+        stableData++;
+        Serial.print(F("STABLE fc "));
+        Serial.print(fc, HEX);
+        Serial.print(F(" addr "));
+        Serial.print(addr);
+        Serial.print(F(" rx "));
+        printRaw(a.rawRx, a.rawRxLen);
+        Serial.println();
+      } else if (frameStable(a, b) && illegalAddressShape(a, slave, fc)) {
+        illegal++;
+      } else if (a.rawRxLen == 0 && b.rawRxLen == 0) {
+        none++;
+      } else {
+        unstable++;
+      }
+    }
+  }
+
+  Serial.println(F("## ET1641 SCAN SUMMARY"));
+  Serial.print(F("CRC-valid frames: "));
+  Serial.println(pass);
+  Serial.print(F("Stable non-exception payloads: "));
+  Serial.println(stableData);
+  Serial.print(F("Stable illegal-address exceptions: "));
+  Serial.println(illegal);
+  Serial.print(F("Unstable frames: "));
+  Serial.println(unstable);
+  Serial.print(F("No reply: "));
+  Serial.println(none);
+  Serial.print(F("UART now: "));
+  Serial.print(rs485.baud());
+  Serial.print(rs485.parity() == 1 ? F(" 8O1")
+                                   : (rs485.parity() == 2 ? F(" 8E1") : F(" 8N1")));
+  Serial.println();
+}
+
+void Cli::cmdEnvolt(char *args) {
+  uint8_t slave = 63;
+  if (args && args[0]) {
+    const long id = strtol(args, nullptr, 0);
+    if (id >= 1 && id <= 247) {
+      slave = static_cast<uint8_t>(id);
+    }
+  }
+  _slaveId = slave;
+#if defined(ARDUINO_ARCH_ESP32)
+  WiFi.mode(WIFI_OFF);
+  Serial.println(F("WiFi radio OFF for this scan"));
+#endif
+  Serial.println(F("## EN-VOLT SCAN"));
+  Serial.print(F("Slave "));
+  Serial.println(slave);
+
+  // This meter answers in ~15 ms. A short miss-timeout keeps a full
+  // address sweep from stalling a second on every empty address.
+  const uint32_t tmo = 200;
+  uint8_t rx[64];
+
+  auto printHex = [](const uint8_t *f, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+      if (f[i] < 0x10) {
+        Serial.print('0');
+      }
+      Serial.print(f[i], HEX);
+      if (i + 1 < n) {
+        Serial.print(' ');
+      }
+    }
+    Serial.println();
+  };
+  auto printWords = [](const uint8_t *f, size_t n) {
+    if (n < 7) {
+      return;
+    }
+    uint16_t index = 0;
+    for (size_t i = 3; i + 1 < n - 2; i += 2) {
+      const uint16_t word =
+          static_cast<uint16_t>((f[i] << 8) | f[i + 1]);
+      Serial.print(F("  ["));
+      Serial.print(index++);
+      Serial.print(F("]="));
+      Serial.print(word);
+      Serial.print(F(" 0x"));
+      Serial.println(word, HEX);
+    }
+  };
+  auto wordDiffs = [](const uint8_t *a, const uint8_t *b, size_t n) -> uint8_t {
+    uint8_t diffs = 0;
+    if (n < 7) {
+      return 255;
+    }
+    for (size_t i = 3; i + 1 < n - 2; i += 2) {
+      if (a[i] != b[i] || a[i + 1] != b[i + 1]) {
+        diffs++;
+      }
+    }
+    return diffs;
+  };
+
+  Serial.println(F("-- FC04 addr 0 qty 1"));
+  size_t n = modbus.exchange(slave, 0x04, 0, 1, rx, sizeof(rx), tmo);
+  Serial.print(F("len "));
+  Serial.print(n);
+  Serial.print((n >= 5 && modbusCrcOk(rx, n)) ? F(" CRC PASS ") : F(" CRC FAIL "));
+  printHex(rx, n);
+
+  static uint8_t images[6][64];
+  static uint8_t imageLen[6];
+  static uint16_t imageAddr[6];
+  uint8_t imageCount = 0;
+  // 0 silent, 1..6 data image, 0x80|code exception
+  static uint8_t status[256];
+  memset(status, 0, sizeof(status));
+  const uint16_t span = 256;
+
+  Serial.println(F("-- FC03 addr 0..255 qty 1"));
+  for (uint16_t addr = 0; addr < span; addr++) {
+    n = modbus.exchange(slave, 0x03, addr, 1, rx, sizeof(rx), tmo);
+    delay(40);
+    if (n < 5 || !modbusCrcOk(rx, n)) {
+      continue;
+    }
+    if (n == 5 && (rx[1] & 0x80)) {
+      status[addr] = static_cast<uint8_t>(0x80 | rx[2]);
+      continue;
+    }
+    int slot = -1;
+    for (uint8_t s = 0; s < imageCount; s++) {
+      if (imageLen[s] == n && wordDiffs(images[s], rx, n) <= 2) {
+        slot = s;
+        break;
+      }
+    }
+    if (slot < 0 && imageCount < 6) {
+      slot = imageCount++;
+      memcpy(images[slot], rx, n);
+      imageLen[slot] = static_cast<uint8_t>(n);
+      imageAddr[slot] = addr;
+      Serial.print(F("DATA addr "));
+      Serial.print(addr);
+      Serial.print(F(" len "));
+      Serial.print(n);
+      Serial.print(F(" count-field "));
+      Serial.println(rx[2]);
+      printHex(rx, n);
+      printWords(rx, n);
+    } else if (slot < 0) {
+      Serial.print(F("DATA addr "));
+      Serial.print(addr);
+      Serial.print(F(" len "));
+      Serial.print(n);
+      Serial.print(' ');
+      printHex(rx, n);
+    }
+    if (slot >= 0) {
+      status[addr] = static_cast<uint8_t>(slot + 1);
+    }
+  }
+
+  auto dumpCode = [&](uint8_t code, const __FlashStringHelper *label) {
+    bool in = false;
+    uint16_t start = 0;
+    uint16_t count = 0;
+    for (uint16_t addr = 0; addr <= span; addr++) {
+      const bool on = addr < span && status[addr] == code;
+      if (on && !in) {
+        start = addr;
+        in = true;
+      }
+      if (!on && in) {
+        Serial.print(label);
+        Serial.print(' ');
+        Serial.print(start);
+        if (addr - 1 != start) {
+          Serial.print('-');
+          Serial.print(addr - 1);
+        }
+        Serial.print(F(" ("));
+        Serial.print(addr - start);
+        Serial.println(')');
+        count += static_cast<uint16_t>(addr - start);
+        in = false;
+      }
+    }
+    if (count) {
+      Serial.print(label);
+      Serial.print(F(" total "));
+      Serial.println(count);
+    }
+  };
+  Serial.println(F("-- ranges"));
+  dumpCode(0, F("silent"));
+  dumpCode(0x82, F("exc02 illegal-address"));
+  dumpCode(0x83, F("exc03 illegal-value"));
+  dumpCode(0x81, F("exc01 illegal-function"));
+  for (uint8_t s = 0; s < imageCount; s++) {
+    Serial.print(F("image "));
+    Serial.print(s);
+    dumpCode(static_cast<uint8_t>(s + 1), F(""));
+  }
+
+  Serial.println(F("-- quantity at each new address"));
+  const uint16_t qtys[] = {1, 2, 8, 16};
+  for (uint8_t s = 0; s < imageCount; s++) {
+    for (size_t q = 0; q < sizeof(qtys) / sizeof(qtys[0]); q++) {
+      n = modbus.exchange(slave, 0x03, imageAddr[s], qtys[q], rx, sizeof(rx),
+                          tmo);
+      delay(40);
+      const bool crc = n >= 5 && modbusCrcOk(rx, n);
+      Serial.print(F("image "));
+      Serial.print(s);
+      Serial.print(F(" addr "));
+      Serial.print(imageAddr[s]);
+      Serial.print(F(" qty "));
+      Serial.print(qtys[q]);
+      Serial.print(F(" len "));
+      Serial.print(n);
+      Serial.print(crc ? F(" CRC PASS") : F(" CRC FAIL"));
+      if (crc) {
+        Serial.print(F(" count-field "));
+        Serial.print(rx[2]);
+        if (n == imageLen[s]) {
+          Serial.print(F(" word-diffs "));
+          Serial.print(wordDiffs(images[s], rx, n));
+        }
+      }
+      Serial.println();
+    }
+  }
+
+  Serial.println(F("-- reread data"));
+  for (uint8_t s = 0; s < imageCount; s++) {
+    if (imageLen[s] < 7) {
+      continue;
+    }
+    n = modbus.exchange(slave, 0x03, imageAddr[s], 1, rx, sizeof(rx), tmo);
+    delay(40);
+    if (n != imageLen[s] || !modbusCrcOk(rx, n)) {
+      Serial.print(F("addr "));
+      Serial.print(imageAddr[s]);
+      Serial.println(F(" miss"));
+      continue;
+    }
+    const uint8_t diffs = wordDiffs(images[s], rx, n);
+    if (diffs == 0) {
+      Serial.print(F("addr "));
+      Serial.print(imageAddr[s]);
+      Serial.println(F(" steady"));
+      continue;
+    }
+    Serial.print(F("addr "));
+    Serial.print(imageAddr[s]);
+    Serial.print(F(" live"));
+    for (size_t i = 3; i + 1 < n - 2; i += 2) {
+      if (rx[i] == images[s][i] && rx[i + 1] == images[s][i + 1]) {
+        continue;
+      }
+      const uint16_t word =
+          static_cast<uint16_t>((rx[i] << 8) | rx[i + 1]);
+      Serial.print(F(" ["));
+      Serial.print((i - 3) / 2);
+      Serial.print(F("]="));
+      Serial.print(word);
+    }
+    Serial.println();
+  }
+  Serial.println(F("-- FC04 again"));
+  n = modbus.exchange(slave, 0x04, 0, 1, rx, sizeof(rx), tmo);
+  Serial.print(F("len "));
+  Serial.print(n);
+  Serial.print((n >= 5 && modbusCrcOk(rx, n)) ? F(" CRC PASS ") : F(" CRC FAIL "));
+  printHex(rx, n);
+  Serial.println(F("EN-VOLT DONE"));
+}
+
 void Cli::handleLine(char *line) {
   while (*line == ' ' || *line == '\t') {
     line++;
@@ -1178,6 +1632,10 @@ void Cli::handleLine(char *line) {
     cmdDiagnostic(rest);
   } else if (strcasecmp(cmd, "repeat") == 0) {
     cmdRepeat(rest);
+  } else if (strcasecmp(cmd, "dcem") == 0) {
+    cmdDcem(rest);
+  } else if (strcasecmp(cmd, "envolt") == 0) {
+    cmdEnvolt(rest);
   } else {
     Serial.print(F("Unknown command: "));
     Serial.println(cmd);

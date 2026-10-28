@@ -6,12 +6,17 @@
 #include "modbus/modbus_crc.h"
 #include "rs485/rs485.h"
 
+#if defined(ARDUINO_ARCH_ESP32)
+#include "soc/uart_struct.h"
+#endif
+
 namespace {
 
 struct RxByteTiming {
   uint16_t gapUs[64];
   uint8_t count;
   uint32_t charUs;
+  uint8_t uartErr;
 };
 
 RxByteTiming gRxTiming;
@@ -24,6 +29,35 @@ uint32_t charTimeUs() {
   return (11UL * 1000000UL + baud - 1) / baud;
 }
 
+#if defined(ARDUINO_ARCH_ESP32)
+uint8_t readUartErr() {
+  uint8_t err = 0;
+  if (UART1.int_raw.frm_err) {
+    err |= 1;
+  }
+  if (UART1.int_raw.parity_err) {
+    err |= 2;
+  }
+  if (UART1.int_raw.rxfifo_ovf) {
+    err |= 4;
+  }
+  if (UART1.int_raw.glitch_det) {
+    err |= 8;
+  }
+  if (UART1.int_raw.brk_det) {
+    err |= 16;
+  }
+  UART1.int_clr.frm_err = 1;
+  UART1.int_clr.parity_err = 1;
+  UART1.int_clr.rxfifo_ovf = 1;
+  UART1.int_clr.glitch_det = 1;
+  UART1.int_clr.brk_det = 1;
+  return err;
+}
+#else
+uint8_t readUartErr() { return 0; }
+#endif
+
 void printRxGaps() {
   Serial.print(F("RX char us: "));
   Serial.println(gRxTiming.charUs);
@@ -32,12 +66,48 @@ void printRxGaps() {
     Serial.println(F(" (none)"));
     return;
   }
+  uint8_t onGrid = 0;
+  uint8_t late = 0;
   for (uint8_t i = 0; i < gRxTiming.count; i++) {
     Serial.print(' ');
     Serial.print(gRxTiming.gapUs[i]);
+    if (i == 0) {
+      continue;
+    }
+    const uint16_t gap = gRxTiming.gapUs[i];
+    if (gap + 400 > gRxTiming.charUs && gap < gRxTiming.charUs + 500) {
+      onGrid++;
+    } else if (gap > gRxTiming.charUs + 500) {
+      late++;
+    }
   }
   Serial.println();
-  Serial.println(F("(only a gap >= 8 char splits a second burst)"));
+  Serial.print(F("RX timing: "));
+  Serial.print(onGrid);
+  Serial.print(F(" on 9600 grid, "));
+  Serial.print(late);
+  Serial.println(F(" late"));
+  Serial.print(F("UART err:"));
+  if (gRxTiming.uartErr == 0) {
+    Serial.println(F(" none"));
+  } else {
+    if (gRxTiming.uartErr & 1) {
+      Serial.print(F(" FRAMING"));
+    }
+    if (gRxTiming.uartErr & 2) {
+      Serial.print(F(" PARITY"));
+    }
+    if (gRxTiming.uartErr & 4) {
+      Serial.print(F(" OVERRUN"));
+    }
+    if (gRxTiming.uartErr & 8) {
+      Serial.print(F(" GLITCH"));
+    }
+    if (gRxTiming.uartErr & 16) {
+      Serial.print(F(" BREAK"));
+    }
+    Serial.println();
+  }
 }
 
 }  // namespace
@@ -210,6 +280,8 @@ size_t ModbusClient::collectRx(uint8_t *buf, size_t bufMax, uint32_t timeoutMs,
   const uint32_t eofUs = charUs * 8;
   gRxTiming.charUs = charUs;
   gRxTiming.count = 0;
+  gRxTiming.uartErr = 0;
+  (void)readUartErr();
   if (outFirstByteMs) {
     *outFirstByteMs = 0;
   }
@@ -276,7 +348,31 @@ size_t ModbusClient::collectRx(uint8_t *buf, size_t bufMax, uint32_t timeoutMs,
   for (uint8_t i = 0; i < gRxTiming.count; i++) {
     gRxTiming.gapUs[i] = gaps[begin + i];
   }
+  gRxTiming.uartErr = readUartErr();
   return len;
+}
+
+size_t ModbusClient::exchange(uint8_t slaveId, uint8_t functionCode,
+                               uint16_t address, uint16_t quantity,
+                               uint8_t *rx, size_t rxMax, uint32_t timeoutMs) {
+  if (!rx || rxMax == 0 || quantity == 0 || quantity > 125) {
+    return 0;
+  }
+  if (timeoutMs == 0) {
+    timeoutMs = MODBUS_RESPONSE_TIMEOUT_MS;
+  }
+  uint8_t req[8];
+  req[0] = slaveId;
+  req[1] = functionCode;
+  req[2] = static_cast<uint8_t>((address >> 8) & 0xFF);
+  req[3] = static_cast<uint8_t>(address & 0xFF);
+  req[4] = static_cast<uint8_t>((quantity >> 8) & 0xFF);
+  req[5] = static_cast<uint8_t>(quantity & 0xFF);
+  const size_t reqLen = modbusAppendCrc(req, 6);
+  rs485.flushRx();
+  rs485.transmit(req, reqLen, nullptr, nullptr, nullptr);
+  (void)rs485.flushRxCounted(nullptr, 0);
+  return collectRx(rx, rxMax, timeoutMs, nullptr);
 }
 
 RawRs485Capture ModbusClient::rawCapture(uint8_t slaveId, uint8_t functionCode,

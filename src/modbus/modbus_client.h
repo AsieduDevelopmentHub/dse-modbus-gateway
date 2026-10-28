@@ -69,6 +69,12 @@ public:
   RawRs485Capture rawCapture(uint8_t slaveId, uint8_t functionCode,
                              uint16_t address, uint16_t quantity);
 
+  // Silent FC03/04 exchange. Returns the RX length (0 on timeout).
+  // timeoutMs 0 uses MODBUS_RESPONSE_TIMEOUT_MS.
+  size_t exchange(uint8_t slaveId, uint8_t functionCode, uint16_t address,
+                  uint16_t quantity, uint8_t *rx, size_t rxMax,
+                  uint32_t timeoutMs = 0);
+
   ModbusResponse readHoldingRegisters(uint8_t slaveId, uint16_t address,
                                       uint16_t quantity,
                                       const ModbusTxnInfo *info = nullptr);

@@ -33,6 +33,8 @@ private:
   void cmdScf(char *args);
   void cmdIterate(char *args);
   void cmdWatch(char *args);
+  void cmdDcem(char *args);
+  void cmdEnvolt(char *args);
   void applySelectedDevice();
   ModbusTxnInfo makeTxnInfo() const;
   bool ensureDseSelected() const;
