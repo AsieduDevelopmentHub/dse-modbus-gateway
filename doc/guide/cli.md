@@ -294,6 +294,15 @@ device select et1641
 rawread 50 03 0000 1
 ```
 
+**EN-Volt (slave 63).** `envolt` scans the image map and turns Wi-Fi off until reset. Map: [en_volt.md](en_volt.md).
+
+```text
+envolt 63
+rs485raw 63 03 0000 1
+rs485raw 63 03 0002 1
+rs485raw 63 03 001E 1
+```
+
 ---
 
 ## Related
@@ -301,5 +310,6 @@ rawread 50 03 0000 1
 | Doc | Contents |
 |-----|----------|
 | [getting_started.md](getting_started.md) | Wiring, flash, ET1641 procedure |
+| [en_volt.md](en_volt.md) | Measured EN-Volt register map (slave 63) |
 | [register_map.md](../dse_register_map/register_map.md) | Named registers + scaling |
 | [register_clone_dse8610.md](../dse_register_map/register_clone_dse8610.md) | Shared DSE map notes (8610 docs overlap 7320) |

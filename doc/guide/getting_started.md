@@ -129,6 +129,19 @@ Address `0000` is a bus probe only — not a documented ET1641 map entry.
 
 ---
 
+## EN-Volt
+
+Invendis EN-Volt, slave **63**, **9600 8N1**, function 03. The measured map (three fixed images at addresses 0, 2, and 30, plus a zero window from 100) is in [en_volt.md](en_volt.md).
+
+```text
+envolt 63
+rs485raw 63 03 0000 1
+```
+
+`envolt` turns Wi-Fi off until the next reset. `read` rejects those three frames; use `rs485raw` and trust the full-buffer CRC.
+
+---
+
 ## DSE 7320 / 7320 MKII test
 
 Confirm on the controller (or GenComm): Modbus enabled, slave ID, baud (often **9600 8N1**). Site IDs vary — override with `set slave`.
