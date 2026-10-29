@@ -137,6 +137,11 @@ void Rs485Bus::waitTxComplete() {
 size_t Rs485Bus::transmit(const uint8_t *data, size_t len,
                           uint32_t *outTxStartUs, uint32_t *outTxCompleteUs,
                           uint32_t *outDeLowUs) {
+#if defined(ARDUINO_ARCH_ESP32)
+  // Drop a stuck RX FIFO. An overflow during USB printing otherwise
+  // swallows the next slave reply and a write looks like a timeout.
+  uart_flush_input(static_cast<uart_port_t>(RS485_UART_NUM));
+#endif
   setTransmitMode();
   if (_txPreDelayUs > 0) {
     delayMicroseconds(_txPreDelayUs);

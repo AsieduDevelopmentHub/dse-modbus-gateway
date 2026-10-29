@@ -31,6 +31,7 @@ private:
   void cmdPoll(char *args);
   void cmdAlarms(char *args);
   void cmdScf(char *args);
+  void cmdWrite(char *args, bool single);
   void cmdIterate(char *args);
   void cmdWatch(char *args);
   void cmdDcem(char *args);

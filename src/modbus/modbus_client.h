@@ -93,6 +93,11 @@ public:
                                         uint16_t quantity,
                                         const ModbusTxnInfo *info = nullptr);
 
+  // FC06 write one holding register. Response echoes address and value.
+  ModbusResponse writeSingleRegister(uint8_t slaveId, uint16_t address,
+                                     uint16_t value,
+                                     const ModbusTxnInfo *info = nullptr);
+
   // Validate CRC on an already-captured buffer (for rs485raw follow-up).
   void printCrcAudit(const uint8_t *frame, size_t length);
 

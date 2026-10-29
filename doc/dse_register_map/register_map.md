@@ -115,6 +115,15 @@ scf raw 35703
 
 Writes key + complement (65535−key) to 4104/4105 in one FC16 transaction.
 
+## GenComm page catalog
+
+Full page tables from the GenComm register standard are in
+`gencomm_pages.json` (address = page × 256 + offset). System control keys and
+the FC16 write pair (4104 = key, 4105 = ones complement) are in that file.
+`live_7320.json` is the FC03 snapshot taken from this module while it was
+connected. Regenerate the live file with `python tools/capture_live_gencomm.py`
+only when the controller is on the RS485 bus.
+
 ## Notes
 
 - **Slave Device Address:** `10` for all entries.

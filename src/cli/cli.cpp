@@ -88,6 +88,8 @@ void Cli::printHelp() {
   Serial.println(F("  watch [n]                          (loop: comm/regs/scf flags/alarms)"));
   Serial.println(F("  alarms                             (active alarms only)"));
   Serial.println(F("  scf list|flags|<cmd>|raw <key>     (DSE control write)"));
+  Serial.println(F("  write16 <addr> <word> [word...]    (FC16, max 16 words)"));
+  Serial.println(F("  write06 <addr> <word>              (FC06 one register)"));
   Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
   Serial.println(F("  set parity <none|even|odd>"));
   Serial.println(F("  set settle <us> | set predelay <us>   (RS485 DE timing)"));
@@ -839,29 +841,69 @@ void Cli::cmdScf(char *args) {
   Serial.print(F(" complement="));
   Serial.println(static_cast<uint16_t>(65535u - keyCode));
 
-  // Best-effort support check (non-fatal if flags unread).
-  {
-    ModbusTxnInfo finfo = makeTxnInfo();
-    const ModbusResponse flags = modbus.readRegisters(
-        _slaveId, 0x03, DseScf::kRegFlagsBase, DseScf::kFlagRegCount, &finfo);
-    if (flags.result == ModbusResult::Ok &&
-        flags.valueCount >= DseScf::kFlagRegCount) {
-      if (!DseScf::isSupported(keyCode, flags.values)) {
-        Serial.println(
-            F("NOTE: support flag bit is clear for this key on this unit."));
-        Serial.println(F("      Sending write anyway (controller may reject)."));
-      }
-    }
-  }
-
+  // Do not read the support flags in this command. On this 7320 the first
+  // FC16 sent right after that FC03 is ignored (silence). `scf flags` still
+  // reads them. A second write is only used when the first one is silent.
   ModbusTxnInfo info = makeTxnInfo();
   info.address = DseScf::kRegKey;
   info.quantity = 2;
-  const ModbusResponse wr = DseScf::writeKey(_slaveId, keyCode, &info);
+  ModbusResponse wr;
+  for (int attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      delay(50);
+    }
+    wr = DseScf::writeKey(_slaveId, keyCode, &info);
+    if (wr.result == ModbusResult::Ok || wr.result == ModbusResult::Exception) {
+      break;
+    }
+  }
   if (wr.result == ModbusResult::Ok) {
     Serial.println(F("SCF write ACK OK"));
   } else {
-    Serial.println(F("SCF write FAILED"));
+    Serial.print(F("SCF write FAILED result="));
+    Serial.print(static_cast<int>(wr.result));
+    if (wr.result == ModbusResult::Exception) {
+      Serial.print(F(" exception="));
+      Serial.print(wr.exceptionCode);
+    }
+    Serial.println();
+  }
+}
+
+void Cli::cmdWrite(char *args, bool single) {
+  char *addrStr = strtok(args, " \t");
+  if (!addrStr) {
+    Serial.println(single ? F("Usage: write06 <addr> <word>")
+                          : F("Usage: write16 <addr> <word> [word...]"));
+    return;
+  }
+  const long address = strtol(addrStr, nullptr, 0);
+  uint16_t values[16];
+  uint16_t n = 0;
+  while (n < (single ? 1 : 16)) {
+    char *w = strtok(nullptr, " \t");
+    if (!w) {
+      break;
+    }
+    values[n++] = static_cast<uint16_t>(strtoul(w, nullptr, 0));
+  }
+  if (address < 0 || address > 0xFFFF || n == 0 || (single && n != 1)) {
+    Serial.println(F("ERROR: bad write args"));
+    return;
+  }
+  ModbusTxnInfo info = makeTxnInfo();
+  info.address = static_cast<uint16_t>(address);
+  info.quantity = n;
+  const ModbusResponse wr =
+      single ? modbus.writeSingleRegister(_slaveId, info.address, values[0],
+                                           &info)
+             : modbus.writeMultipleRegisters(_slaveId, info.address, values, n,
+                                              &info);
+  if (wr.result == ModbusResult::Ok) {
+    Serial.println(F("WRITE ACK OK"));
+  } else {
+    Serial.print(F("WRITE FAILED result="));
+    Serial.println(static_cast<int>(wr.result));
   }
 }
 
@@ -1621,6 +1663,10 @@ void Cli::handleLine(char *line) {
     cmdAlarms(rest);
   } else if (strcasecmp(cmd, "scf") == 0) {
     cmdScf(rest);
+  } else if (strcasecmp(cmd, "write16") == 0) {
+    cmdWrite(rest, false);
+  } else if (strcasecmp(cmd, "write06") == 0) {
+    cmdWrite(rest, true);
   } else if (strcasecmp(cmd, "read") == 0) {
     cmdRead(rest, false);
   } else if (strcasecmp(cmd, "readhex") == 0) {

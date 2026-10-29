@@ -221,6 +221,8 @@ const char *ModbusClient::exceptionName(uint8_t code) {
       return "Acknowledge";
     case 0x06:
       return "Slave Device Busy";
+    case 0x07:
+      return "Illegal Value";
     case 0x08:
       return "Memory Parity Error";
     case 0x0A:
@@ -608,6 +610,42 @@ ModbusResponse ModbusClient::writeMultipleRegisters(
 
   ModbusResponse resp =
       transact(req, reqLen, slaveId, 0x10, quantity, info, true);
+  resp.txnId = txn;
+  return resp;
+}
+
+ModbusResponse ModbusClient::writeSingleRegister(uint8_t slaveId,
+                                                 uint16_t address,
+                                                 uint16_t value,
+                                                 const ModbusTxnInfo *info) {
+  const uint32_t txn = nextTxnId();
+  Serial.println(F("========================================"));
+  Serial.println(F("MODBUS RTU WRITE (FC06)"));
+  Serial.print(F("TXN #"));
+  Serial.println(txn);
+  Serial.print(F("REQUEST: slave="));
+  Serial.print(slaveId);
+  Serial.print(F(" addr="));
+  Serial.print(address);
+  Serial.print(F(" value="));
+  Serial.println(value);
+
+  uint8_t req[8];
+  req[0] = slaveId;
+  req[1] = 0x06;
+  req[2] = static_cast<uint8_t>((address >> 8) & 0xFF);
+  req[3] = static_cast<uint8_t>(address & 0xFF);
+  req[4] = static_cast<uint8_t>((value >> 8) & 0xFF);
+  req[5] = static_cast<uint8_t>(value & 0xFF);
+  const size_t reqLen = modbusAppendCrc(req, 6);
+  Serial.print(F("FINAL TX BYTE ARRAY: "));
+  printHexLine("", req, reqLen);
+
+  // FC06 echoes address in bytes 2-3 and value in bytes 4-5. Reuse the
+  // FC16 matcher, which treats bytes 4-5 as the echoed quantity: pass the
+  // value so a correct echo matches.
+  ModbusResponse resp =
+      transact(req, reqLen, slaveId, 0x06, value, info, true);
   resp.txnId = txn;
   return resp;
 }
