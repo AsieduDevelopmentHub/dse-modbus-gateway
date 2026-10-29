@@ -163,10 +163,5 @@ size_t Rs485Bus::transmit(const uint8_t *data, size_t len,
     *outDeLowUs = t2;
   }
 
-  // Drop the DE-falling glitch if it is already in the FIFO. Slave replies
-  // on this bench are ~13 ms later, so a short flush does not eat them.
-  delayMicroseconds(400);
-  flushRx();
-
   return written;
 }

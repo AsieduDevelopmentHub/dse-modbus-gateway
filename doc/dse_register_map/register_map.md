@@ -76,7 +76,8 @@ Source: Deep Sea S6 table (screenshot `deepsea_register_map.png`) plus the
 | `scf_f0`…`scf_f7` | 4096–4103 | SCF support flags (read) |
 | `scf_key` / `scf_key_inv` | 4104 / 4105 | Control write pair (use CLI `scf …`) |
 | `charge_alt_v` | 1028 | V (charger alternator) |
-| `mains_freq` / `mains_van`… | 1059 / 1060… | Utility/mains |
+| `mains_freq` / `mains_van`… | 1059 / 1060, 1062, 1064 | Utility L-N, 32-bit, ×0.1 V |
+| `mains_vab` / `mains_vbc` / `mains_vca` | 1066 / 1068 / 1070 | Utility L-L, 32-bit, ×0.1 V |
 | `oil_level` / `coolant_level` | 1357 / 1359 | % |
 | `chg_i_out` / `chg_v_out` | 1256 / 1258 | A / V (mA/mV raw) |
 | `alm_39425`…`alm_39445` | 39425–39445 | Packed 4×4-bit alarms |
@@ -93,7 +94,7 @@ Source: Deep Sea S6 table (screenshot `deepsea_register_map.png`) plus the
 | Total power display | ×0.001 → kW | Raw watts (`gen_p_tot`) |
 | Phase power L1/L2/L3 | `041a/041c/041e` = 1050/1052/1054 | **1052/1054/1056** (S6 / Victron / DSE family) |
 | Alarms page 154 | 32-bit pairs (`9a01` len 4) | Per-register 16-bit nibble decode (same bits) |
-| Utility L1 | 16-bit @1060 (JSON notes docs say 32-bit) | 16-bit @1060 as JSON; L2/L3 32-bit |
+| Utility L1 | 16-bit @1060, plus a separate “test” word @1061 | **32-bit @1060** (high word first). Live 7320: high word 0, low word ~2140 → 214.0 V. A 16-bit read of 1060 shows 0 V |
 | SCF `resetmaint` | Key 35738 | `scf reset_maint` |
 
 Skipped as low-value/unknown: `008b` UNK1.

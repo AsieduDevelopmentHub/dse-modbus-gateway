@@ -119,7 +119,8 @@ Common keys:
 | `gen_p_tot` | Total real power | W |
 | `oil_press` / `coolant_temp` / `fuel_level` | Engine | kPa / °C / % |
 | `eng_hours` / `eng_starts` | Hours / start count | h / count |
-| `mains_freq` / `mains_van` | Utility | Hz / V |
+| `mains_freq` / `mains_van` | Utility L-N | Hz / V |
+| `mains_vab` / `mains_vbc` / `mains_vca` | Utility line-line | V |
 
 Full table: [register_map.md](../dse_register_map/register_map.md).
 
@@ -138,7 +139,7 @@ iterate 3 basic
 
 | Mode | Batches |
 |------|---------|
-| `basic` (default) | Identity 768×8, instrumentation 1024×32, 1056×10, engine status 1408×1 |
+| `basic` (default) | Identity 768×8, instrumentation 1024×32, 1056×16 (through mains L-L), engine status 1408×1 |
 | `power` | 1536×23 (kW / PF), 1798×12 (hours / kWh / starts) |
 | `engine` | basic + oil/coolant level 1357×3 |
 | `all` | basic + power + engine |
@@ -175,7 +176,7 @@ Default **8** cycles (max **40**), **3 s** apart. Type any character to abort be
 Each cycle:
 
 1. Prints slave / baud / FC03  
-2. Quiet batch FC03: `768×8`, `1024×32`, `1056×10`, `1408×1`, `1536×23`, `1798×12`  
+2. Quiet batch FC03: `768×8`, `1024×32`, `1056×16`, `1408×1`, `1536×23`, `1798×12`  
 3. Reads **SCF flags only** (no control writes)  
 4. Batch-reads alarm page 154 (`39425×21`) and prints **active** slots  
 5. Prints `LINK: OK` or `LINK: DEGRADED`

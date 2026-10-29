@@ -103,12 +103,11 @@
 #define MODBUS_RESPONSE_TIMEOUT_MS 1000
 #endif
 
-// Post-TX turnaround before DE→RX. Keep this SHORT: Modbus slaves may reply
-// after ~3.5 character times (~3.5 ms @ 9600). Holding DE high that long
-// causes bus contention and CRC garbage. THVD1450 disables in tens of ns;
-// a few character-bit times of margin is enough after uart_wait_tx_done.
+// Extra hold after uart_wait_tx_done before DE→RX. That wait already covers
+// the stop bit. This DSE starts its reply inside 200 us, so a longer hold
+// drives over the response start bit (01 03 .. arrives as 40 20 ..).
 #ifndef RS485_TX_SETTLE_US
-#define RS485_TX_SETTLE_US 200
+#define RS485_TX_SETTLE_US 0
 #endif
 
 // Brief pause after DE assert before first TX byte (driver enable).

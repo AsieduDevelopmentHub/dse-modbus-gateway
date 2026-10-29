@@ -22,7 +22,7 @@ struct ModbusResponse {
   uint8_t byteCount = 0;
   uint16_t values[32] = {};
   uint8_t valueCount = 0;
-  uint8_t rawRx[64] = {};
+  uint8_t rawRx[96] = {};
   size_t rawRxLen = 0;
   uint32_t txnId = 0;
 };
@@ -43,7 +43,7 @@ struct RawRs485Capture {
   uint8_t tx[16] = {};
   size_t txLen = 0;
   size_t txWritten = 0;
-  uint8_t rx[64] = {};
+  uint8_t rx[96] = {};
   size_t rxLen = 0;
   uint32_t txnId = 0;
   uint32_t tTxStartUs = 0;

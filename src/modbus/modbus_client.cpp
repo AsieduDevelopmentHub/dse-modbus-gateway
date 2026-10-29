@@ -110,6 +110,28 @@ void printRxGaps() {
   }
 }
 
+// Length of one Modbus RTU ADU inside a capture. A fixed 5-byte slice
+// of a normal FC03 reply (byte count + data + CRC) is not a frame.
+size_t modbusAduLen(const uint8_t *rx, size_t n) {
+  if (!rx || n < 5) {
+    return n;
+  }
+  const uint8_t fc = rx[1];
+  if ((fc & 0x80) != 0) {
+    return 5;
+  }
+  if (fc == 0x03 || fc == 0x04) {
+    const size_t need = static_cast<size_t>(3u + rx[2] + 2u);
+    if (need >= 5 && need <= n) {
+      return need;
+    }
+  }
+  if ((fc == 0x06 || fc == 0x10) && n >= 8) {
+    return 8;
+  }
+  return n;
+}
+
 }  // namespace
 
 ModbusClient modbus;
@@ -289,8 +311,10 @@ size_t ModbusClient::collectRx(uint8_t *buf, size_t bufMax, uint32_t timeoutMs,
     return 0;
   }
 
-  uint8_t raw[64];
-  uint16_t gaps[64];
+  // FC03 qty 32 is 69 bytes. A 64-byte cap truncated the CRC and
+  // made the DSE instrumentation batch fail.
+  uint8_t raw[96];
+  uint16_t gaps[96];
   const size_t rawMax = sizeof(raw) < bufMax ? sizeof(raw) : bufMax;
   size_t n = 0;
   const uint32_t startMs = millis();
@@ -444,15 +468,14 @@ RawRs485Capture ModbusClient::rawCapture(uint8_t slaveId, uint8_t functionCode,
   Serial.print(cap.tFirstRxMs);
   Serial.println(F(" ms"));
   Serial.println(F("========================================"));
-  Serial.println(F("Separate CRC audit of captured RX (if length >= 5):"));
-  if (cap.rxLen >= 5) {
-    printCrcAudit(cap.rx, 5);
-    if (cap.rxLen > 5) {
-      Serial.println(F("NOTE: extra bytes beyond 5 — also auditing full buffer:"));
+  Serial.println(F("CRC audit of captured RX:"));
+  if (cap.rxLen > 0) {
+    const size_t adu = modbusAduLen(cap.rx, cap.rxLen);
+    printCrcAudit(cap.rx, adu);
+    if (adu < cap.rxLen) {
+      Serial.println(F("NOTE: extra bytes after the Modbus frame — full buffer:"));
       printCrcAudit(cap.rx, cap.rxLen);
     }
-  } else if (cap.rxLen > 0) {
-    printCrcAudit(cap.rx, cap.rxLen);
   }
   return cap;
 }
@@ -688,7 +711,6 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
 
   if (!quiet) {
     Serial.println(F("[6] Frame validation / CRC audit"));
-    printCrcAudit(resp.rawRx, (got >= 5) ? 5 : got);
   }
 
   size_t frameOff = 0;
@@ -746,6 +768,7 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
 
   if (found == Found::None) {
     if (!quiet) {
+      printCrcAudit(resp.rawRx, modbusAduLen(resp.rawRx, got));
       Serial.print(F("Slave byte: "));
       Serial.println(resp.rawRx[0]);
       Serial.print(F("Function byte: 0x"));
@@ -763,8 +786,15 @@ ModbusResponse ModbusClient::transact(const uint8_t *request, size_t requestLen,
     return resp;
   }
 
-  uint8_t frame[64];
+  if (frameLen > sizeof(resp.rawRx)) {
+    resp.result = ModbusResult::FrameError;
+    return resp;
+  }
+  uint8_t frame[96];
   memcpy(frame, resp.rawRx + frameOff, frameLen);
+  if (!quiet) {
+    printCrcAudit(frame, frameLen);
+  }
   resp.slaveId = frame[0];
   resp.functionCode = frame[1];
 

@@ -323,12 +323,16 @@ static const char dse_ps_2141f99a1a[] PROGMEM = "mains_freq";
 static const char dse_ps_b7c1c2c6c4[] PROGMEM = "Utility / Mains Frequency";
 static const char dse_ps_069e48d517[] PROGMEM = "mains_van";
 static const char dse_ps_74338ba66d[] PROGMEM = "Utility Voltage L1";
-static const char dse_ps_a35d9d43e8[] PROGMEM = "mains_van_test";
-static const char dse_ps_fede23f98d[] PROGMEM = "Utility Voltage L1 (test/alt)";
 static const char dse_ps_38a41c4c12[] PROGMEM = "mains_vbn";
 static const char dse_ps_298bb12c5d[] PROGMEM = "Utility Voltage L2";
 static const char dse_ps_c2db023abe[] PROGMEM = "mains_vcn";
 static const char dse_ps_0d627646f5[] PROGMEM = "Utility Voltage L3";
+static const char dse_k_mains_vab[] PROGMEM = "mains_vab";
+static const char dse_n_mains_vab[] PROGMEM = "Utility Voltage L1-L2";
+static const char dse_k_mains_vbc[] PROGMEM = "mains_vbc";
+static const char dse_n_mains_vbc[] PROGMEM = "Utility Voltage L2-L3";
+static const char dse_k_mains_vca[] PROGMEM = "mains_vca";
+static const char dse_n_mains_vca[] PROGMEM = "Utility Voltage L3-L1";
 static const char dse_ps_abeb9c1634[] PROGMEM = "gen_i_avg";
 static const char dse_ps_e3c4824de1[] PROGMEM = "Generator Average AC RMS Current";
 static const char dse_ps_78171ae0b4[] PROGMEM = "gen_p_tot";
@@ -431,15 +435,19 @@ const DseRegisterFlash kMap[] PROGMEM = {
     R32S(1056, 1.0f, dse_ps_3f1968ccbb, dse_ps_606b895ff0, dse_ps_61e9c06ea9, 2455),
     // Utility / mains (page 4) — from 7320MKII clone JSON
     R16U(1059, 0.1f, dse_ps_2141f99a1a, dse_ps_b7c1c2c6c4, dse_ps_d1e2634cb7, 0),
-    R16U(1060, 0.1f, dse_ps_069e48d517, dse_ps_74338ba66d, dse_ps_5206560a30, 0),
-    R16U(1061, 0.1f, dse_ps_a35d9d43e8, dse_ps_fede23f98d, dse_ps_5206560a30, 0),
+    // GenComm 1060 is uint32, high word first. The high word is 0 at mains
+    // voltage, so a 16-bit read of 1060 alone shows 0 V.
+    R32U(1060, 0.1f, dse_ps_069e48d517, dse_ps_74338ba66d, dse_ps_5206560a30, 0),
     R32U(1062, 0.1f, dse_ps_38a41c4c12, dse_ps_298bb12c5d, dse_ps_5206560a30, 0),
     R32U(1064, 0.1f, dse_ps_c2db023abe, dse_ps_0d627646f5, dse_ps_5206560a30, 0),
+    R32U(1066, 0.1f, dse_k_mains_vab, dse_n_mains_vab, dse_ps_5206560a30, 0),
+    R32U(1068, 0.1f, dse_k_mains_vbc, dse_n_mains_vbc, dse_ps_5206560a30, 0),
+    R32U(1070, 0.1f, dse_k_mains_vca, dse_n_mains_vca, dse_ps_5206560a30, 0),
     R32U(1666, 0.1f, dse_ps_abeb9c1634, dse_ps_e3c4824de1, dse_ps_7fc56270e7, 2448),
     R32S(1536, 1.0f, dse_ps_78171ae0b4, dse_ps_aac7229b24, dse_ps_61e9c06ea9, 2452),
-    R32S(1538, 1.0f, dse_ps_0fc899be8d, dse_ps_580b9be508, dse_ps_3a11129c34, 2461),
-    R32S(1540, 1.0f, dse_ps_5123f15a67, dse_ps_e33eafd0e8, dse_ps_3a11129c34, 2462),
-    R32S(1542, 1.0f, dse_ps_2cc3a931a8, dse_ps_276d78b634, dse_ps_3a11129c34, 2463),
+    R32U(1538, 1.0f, dse_ps_0fc899be8d, dse_ps_580b9be508, dse_ps_3a11129c34, 2461),
+    R32U(1540, 1.0f, dse_ps_5123f15a67, dse_ps_e33eafd0e8, dse_ps_3a11129c34, 2462),
+    R32U(1542, 1.0f, dse_ps_2cc3a931a8, dse_ps_276d78b634, dse_ps_3a11129c34, 2463),
     R32S(1544, 1.0f, dse_ps_1a6bbc6fee, dse_ps_332a614a14, dse_ps_3a11129c34, 2460),
     R32S(1546, 1.0f, dse_ps_4fcec61049, dse_ps_e1983552c7, dse_ps_f54ce9273e, 2457),
     R32S(1548, 1.0f, dse_ps_2b4abef024, dse_ps_af44f49361, dse_ps_f54ce9273e, 2458),
@@ -626,17 +634,54 @@ void printScaled(float value, float factor) {
   Serial.print(buf);
 }
 
-bool isInvalidScaled(const DseRegister &reg, int32_t rawS, uint32_t rawU) {
+bool inSentinelBand(const DseRegister &reg, uint32_t rawU) {
+  // GenComm instrumentation sentinels, eight codes ending at unimplemented.
+  // Signed: 0x7FF8..0x7FFF. Unsigned: 0xFFF8..0xFFFF (and the 32-bit forms).
   if (reg.width == DseDataWidth::Int16) {
     if (reg.isSigned) {
-      return rawS == 0x7FFF;
+      return rawU >= 0x7FF8u && rawU <= 0x7FFFu;
     }
-    return rawU == 0xFFFFu;
+    return rawU >= 0xFFF8u && rawU <= 0xFFFFu;
   }
   if (reg.isSigned) {
-    return rawS == static_cast<int32_t>(0x7FFFFFFF);
+    return rawU >= 0x7FFFFFF8u && rawU <= 0x7FFFFFFFu;
   }
-  return rawU == 0xFFFFFFFFu;
+  return rawU >= 0xFFFFFFF8u;
+}
+
+const char *sentinelName(const DseRegister &reg, uint32_t rawU) {
+  uint32_t base = 0;
+  if (reg.width == DseDataWidth::Int16) {
+    base = reg.isSigned ? 0x7FF8u : 0xFFF8u;
+  } else {
+    base = reg.isSigned ? 0x7FFFFFF8u : 0xFFFFFFF8u;
+  }
+  if (rawU < base || rawU > base + 7u) {
+    return "unavailable";
+  }
+  switch (rawU - base) {
+    case 0:
+      return "reserved";
+    case 1:
+      return "low input";
+    case 2:
+      return "high input";
+    case 3:
+      return "bad data";
+    case 4:
+      return "transducer fault";
+    case 5:
+      return "under range";
+    case 6:
+      return "over range";
+    default:
+      return "unimplemented";
+  }
+}
+
+bool isInvalidScaled(const DseRegister &reg, int32_t rawS, uint32_t rawU) {
+  (void)rawS;
+  return inSentinelBand(reg, rawU);
 }
 
 void loadRegister(size_t index, DseRegister *out) {
@@ -910,9 +955,12 @@ DseDecodedValue decode(const DseRegister &reg, const uint16_t *values,
       v.engineering = static_cast<float>(rawU) / 3600.0f;
       break;
     case DseDecodeKind::IdentityU16:
-    case DseDecodeKind::Bitmask:
     case DseDecodeKind::EnumOpMode:
     case DseDecodeKind::EnumEngStatus:
+      v.invalid = (rawU == 0xFFFFu);
+      v.engineering = static_cast<float>(rawU);
+      break;
+    case DseDecodeKind::Bitmask:
     case DseDecodeKind::AlarmPacked:
       v.engineering = static_cast<float>(rawU);
       break;
@@ -970,7 +1018,7 @@ void printDecoded(const DseDecodedValue &v) {
   Serial.print(F(" = "));
 
   if (v.invalid) {
-    Serial.print(F("UNAVAILABLE"));
+    Serial.print(sentinelName(r, v.rawU));
   } else {
     switch (r.kind) {
       case DseDecodeKind::EnumOpMode:
@@ -1137,6 +1185,15 @@ const char *friendlyLabel(const DseRegister &reg) {
   if (strcmp(reg.key, "mains_vcn") == 0) {
     return "Mains L3 voltage";
   }
+  if (strcmp(reg.key, "mains_vab") == 0) {
+    return "Mains L1-L2 voltage";
+  }
+  if (strcmp(reg.key, "mains_vbc") == 0) {
+    return "Mains L2-L3 voltage";
+  }
+  if (strcmp(reg.key, "mains_vca") == 0) {
+    return "Mains L3-L1 voltage";
+  }
   if (strcmp(reg.key, "eng_hours") == 0) {
     return "Engine hours";
   }
@@ -1191,7 +1248,7 @@ void printBatchReadable(uint16_t batchStart, const uint16_t *values,
     Serial.print(friendlyLabel(r));
     Serial.print(F(": "));
     if (v.invalid) {
-      Serial.println(F("unavailable"));
+      Serial.println(sentinelName(r, v.rawU));
       continue;
     }
     switch (r.kind) {

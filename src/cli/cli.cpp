@@ -340,8 +340,13 @@ void Cli::readAndPrintRegister(const DseRegister &reg) {
   info.address = reg.address;
   info.quantity = qty;
   // Named reads always use FC03 holding registers (map definition).
-  const ModbusResponse resp =
+  ModbusResponse resp =
       modbus.readRegisters(_slaveId, 0x03, reg.address, qty, &info);
+  if (resp.result != ModbusResult::Ok) {
+    // A short reply is sometimes torn by the DE edge. One retry is enough.
+    delay(30);
+    resp = modbus.readRegisters(_slaveId, 0x03, reg.address, qty, &info);
+  }
   if (resp.result != ModbusResult::Ok) {
     Serial.print(F("FAIL: "));
     Serial.print(reg.key);
@@ -459,7 +464,9 @@ void Cli::cmdPoll(char *args) {
            strcmp(r.key, "gen_pct_kw") == 0 || strcmp(r.key, "oil_press") == 0 ||
            strcmp(r.key, "coolant_temp") == 0 ||
            strcmp(r.key, "fuel_level") == 0 || strcmp(r.key, "mains_freq") == 0 ||
-           strcmp(r.key, "mains_van") == 0;
+           strcmp(r.key, "mains_van") == 0 || strcmp(r.key, "mains_vbn") == 0 ||
+           strcmp(r.key, "mains_vcn") == 0 || strcmp(r.key, "mains_vab") == 0 ||
+           strcmp(r.key, "mains_vbc") == 0 || strcmp(r.key, "mains_vca") == 0;
   };
 
   Serial.print(F("## DSE poll ("));
@@ -553,11 +560,12 @@ void Cli::cmdIterate(char *args) {
       // Engine + generator instrumentation: 1024..1055 (32 regs)
       batchReadPrint(1024, 32);
       delay(30);
-      // Phase C power + utility: 1056..1065
-      batchReadPrint(1056, 10);
+      // Phase C power + utility L-N and L-L: 1056..1071
+      batchReadPrint(1056, 16);
       delay(30);
-      // Engine status
-      batchReadPrint(1408, 1);
+      // Engine status. Qty 1 replies are often torn; the 16-register
+      // window around 1408 is stable and still covers 1408 and 1418.
+      batchReadPrint(1408, 16);
       delay(30);
     }
 
@@ -617,8 +625,8 @@ void Cli::watchOnce() {
   Serial.println(F("--- REGS (batch) ---"));
   batch(768, 8);      // identity / op_mode
   batch(1024, 32);    // engine + gen electrical
-  batch(1056, 10);    // phase C + mains
-  batch(1408, 1);     // engine status
+  batch(1056, 16);    // phase C + mains L-N and L-L
+  batch(1408, 16);    // engine status (short qty-1 replies tear)
   batch(1536, 23);    // power / PF
   batch(1798, 12);    // hours / energy / starts
 

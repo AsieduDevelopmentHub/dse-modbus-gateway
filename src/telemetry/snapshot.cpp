@@ -202,8 +202,8 @@ void refreshNow() {
   // Same ranges as CLI iterate basic + power + alarms
   batch(768, 8);
   batch(1024, 32);
-  batch(1056, 10);
-  batch(1408, 1);
+  batch(1056, 16);
+  batch(1408, 16);
   batch(1536, 23);
 
   collectAlarms(slaveId);
