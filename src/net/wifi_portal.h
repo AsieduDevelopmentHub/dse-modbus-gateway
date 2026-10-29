@@ -10,6 +10,7 @@ void begin();
 void poll();  // refresh Telemetry Wi-Fi fields
 
 const char *mode();  // "AP" | "STA" | "AP+STA" | "off"
+const char *ssid();
 const char *ip();
 int8_t rssi();
 

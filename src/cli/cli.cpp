@@ -1,17 +1,25 @@
 #include "cli/cli.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "auth/auth.h"
+#include "cli/shell.h"
 #include "config/config.h"
+#include "config/settings.h"
+#include "console/tty.h"
 #include "devices/dse7320_registers.h"
 #include "devices/dse_scf.h"
 #include "devices/modbus_device.h"
+#include "fs/editor.h"
+#include "fs/vfs.h"
 #include "modbus/modbus_client.h"
 #include "modbus/modbus_crc.h"
 #include "rs485/rs485.h"
 #include "util/str_util.h"
 #if defined(ARDUINO_ARCH_ESP32)
+#include "net/wifi_portal.h"
 #include "telemetry/snapshot.h"
 #include <WiFi.h>
 #endif
@@ -23,10 +31,21 @@ Cli cli;
 void Cli::begin() {
   devices.begin();
   _functionCode = 0x03;
-  _len = 0;
-  _inEsc = false;
+  _lastInputMs = millis();
+  _addingUser = false;
+  _loginUser[0] = '\0';
+  _pwNew[0] = '\0';
+#if defined(ARDUINO_ARCH_ESP32)
+  Settings::begin();
+  adoptSettings();
+  Auth::begin();
+  _mode = ConsoleMode::LoginUser;
+#else
   applySelectedDevice();
-  printBanner();
+  _mode = ConsoleMode::Shell;
+#endif
+  tty.begin();
+  tty.setCompleter(shellComplete);
 }
 
 void Cli::applySelectedDevice() {
@@ -48,36 +67,57 @@ ModbusTxnInfo Cli::makeTxnInfo() const {
   return info;
 }
 
-void Cli::printBanner() {
+void Cli::present() {
   const ModbusDeviceConfig &d = devices.selected();
   Serial.println();
-  Serial.println(F("DSE 7320 / 7320 MKII Modbus RTU Gateway"));
-  Serial.println(F("---------------------------"));
+  Serial.println(F("DSE Modbus RTU Gateway"));
   Serial.print(F("Board: "));
   Serial.println(F(BOARD_NAME));
 #if defined(GATEWAY_LITE)
   Serial.println(F("Build: GATEWAY_LITE (Modbus diagnostics; no DSE named map)"));
 #endif
 #if defined(ARDUINO_ARCH_ESP32)
-  Serial.println(F("Web UI: soft-AP DSE-GW-XXXX → http://192.168.4.1/"));
-#endif
-  Serial.println(F("Phase 2A diagnostics enabled via CLI"));
-  Serial.println();
+  Auth::logout();
+  Editor::close();
+  _addingUser = false;
+  memset(_pwNew, 0, sizeof(_pwNew));
+  memset(_loginUser, 0, sizeof(_loginUser));
+  _mode = ConsoleMode::LoginUser;
+  tty.discard();
+  Serial.println(F("USB console. Log in to continue."));
+  if (!Vfs::mounted()) {
+    Serial.println(F("WARNING: config filesystem is not mounted."));
+  }
+  if (Auth::factoryPassword()) {
+    Serial.println(F("Factory login: admin / admin"));
+  }
+  Serial.print(F("Wi-Fi AP: "));
+  Serial.print(WifiPortal::ssid());
+  Serial.print(F("  IP "));
+  Serial.println(WifiPortal::ip());
+#else
   Serial.print(F("Selected: "));
   Serial.println(d.name);
   Serial.print(F("Slave ID: "));
   Serial.println(_slaveId);
   Serial.print(F("Baud: "));
   Serial.println(_baudRate);
-  Serial.print(F("Diagnostic: "));
-  Serial.println(modbus.diagnostic() ? F("ON") : F("OFF"));
-  Serial.println();
-  Serial.println(F("Type 'help' / 'crc-test' to start."));
-  Serial.print(F("> "));
+  Serial.println(F("Type 'help' to start."));
+#endif
+  (void)d;
+  showPrompt();
 }
 
 void Cli::printHelp() {
-  Serial.println(F("Commands:"));
+  Serial.println(F("Console:"));
+  Serial.println(F("  help | logout | whoami | passwd | clear | cls | uptime | hostname"));
+  Serial.println(F("  user list | user add <name> | user del <name>"));
+  Serial.println(F("  config | config keys | config get <key> | config set <key> <value>"));
+  Serial.println(F("  config save | config reload | config path"));
+  Serial.println(F("  pwd | ls [path] | cd <path> | cat <file> | edit <file>"));
+  Serial.println(F("  mkdir <path> | rmdir <path> | rm <file> | cp <src> <dst> | mv <src> <dst>"));
+  Serial.println(F("  Editing: arrows, Home/End, Tab, Ctrl-U, Ctrl-W, Ctrl-L, history"));
+  Serial.println(F("Bus:"));
   Serial.println(F("  help | status | config"));
   Serial.println(F("  devices | device list|show|select <key>"));
   Serial.println(F("  regs | registers                  (DSE map list)"));
@@ -125,6 +165,14 @@ void Cli::printStatus() {
   Serial.println(_functionCode, HEX);
   Serial.print(F("Diagnostic: "));
   Serial.println(modbus.diagnostic() ? F("ON") : F("OFF"));
+#if defined(ARDUINO_ARCH_ESP32)
+  Serial.print(F("User: "));
+  Serial.println(Auth::user());
+  Serial.print(F("Wi-Fi: "));
+  Serial.print(WifiPortal::mode());
+  Serial.print(' ');
+  Serial.println(WifiPortal::ip());
+#endif
 }
 
 void Cli::printConfig() {
@@ -174,6 +222,10 @@ void Cli::printConfig() {
   Serial.print(F("RO note: "));
   Serial.println(F(MAX485_RO_NOTE));
   Serial.println(F("USB Serial (CLI) and RS485 UART are separate."));
+#if defined(ARDUINO_ARCH_ESP32)
+  Serial.println();
+  Settings::printSummary();
+#endif
 }
 
 void Cli::cmdDiagnostic(char *args) {
@@ -211,11 +263,17 @@ void Cli::cmdDevice(char *args) {
       Serial.println(F("Usage: device select <name|index>"));
       return;
     }
+#if defined(ARDUINO_ARCH_ESP32)
+    if (!persistSetting("modbus.device", key)) {
+      return;
+    }
+#else
     if (!devices.selectByKey(key)) {
       Serial.println(F("ERROR: unknown device"));
       return;
     }
     applySelectedDevice();
+#endif
     Serial.print(F("Selected "));
     Serial.println(devices.selected().name);
     devices.printSelected();
@@ -239,7 +297,10 @@ void Cli::cmdSet(char *args) {
       return;
     }
     _slaveId = static_cast<uint8_t>(id);
-    Serial.print(F("Slave ID override: "));
+    char saved[8];
+    snprintf(saved, sizeof(saved), "%u", static_cast<unsigned>(_slaveId));
+    persistSetting("modbus.slave", saved);
+    Serial.print(F("Slave ID: "));
     Serial.println(_slaveId);
     return;
   }
@@ -250,6 +311,7 @@ void Cli::cmdSet(char *args) {
       return;
     }
     _functionCode = static_cast<uint8_t>(fc);
+    persistSetting("modbus.fc", _functionCode == 0x04 ? "04" : "03");
     Serial.print(F("FC set to 0x"));
     Serial.println(_functionCode, HEX);
     return;
@@ -263,9 +325,11 @@ void Cli::cmdSet(char *args) {
     _baudRate = static_cast<uint32_t>(baud);
     rs485.applyConfig(_baudRate, rs485.dataBits(), rs485.parity(),
                       rs485.stopBits());
+    char saved[12];
+    snprintf(saved, sizeof(saved), "%lu", static_cast<unsigned long>(_baudRate));
+    persistSetting("modbus.baud", saved);
     Serial.print(F("UART baud set to "));
-    Serial.print(_baudRate);
-    Serial.println(F(" (runtime override; device select resets to profile)"));
+    Serial.println(_baudRate);
     return;
   }
   if (strcasecmp(tok, "settle") == 0) {
@@ -275,6 +339,9 @@ void Cli::cmdSet(char *args) {
       return;
     }
     rs485.setTxSettleUs(static_cast<uint32_t>(us));
+    char saved[12];
+    snprintf(saved, sizeof(saved), "%lu", static_cast<unsigned long>(us));
+    persistSetting("modbus.settle_us", saved);
     Serial.print(F("TX settle set to "));
     Serial.print(us);
     Serial.println(F(" us (post uart_wait_tx_done, before DE->RX)"));
@@ -287,6 +354,9 @@ void Cli::cmdSet(char *args) {
       return;
     }
     rs485.setTxPreDelayUs(static_cast<uint32_t>(us));
+    char saved[12];
+    snprintf(saved, sizeof(saved), "%lu", static_cast<unsigned long>(us));
+    persistSetting("modbus.predelay_us", saved);
     Serial.print(F("TX predelay set to "));
     Serial.print(us);
     Serial.println(F(" us (after DE assert, before write)"));
@@ -305,6 +375,9 @@ void Cli::cmdSet(char *args) {
       return;
     }
     rs485.applyConfig(rs485.baud(), rs485.dataBits(), parity, rs485.stopBits());
+    const char *parityName =
+        parity == 1 ? "odd" : (parity == 2 ? "even" : "none");
+    persistSetting("modbus.parity", parityName);
     Serial.print(F("Parity set to "));
     Serial.println(DeviceRegistry::parityName(parity));
     return;
@@ -319,6 +392,8 @@ void Cli::cmdSet(char *args) {
       Serial.println(F("Usage: set telemetry on|off"));
       return;
     }
+    persistSetting("modbus.telemetry",
+                   strcasecmp(val, "on") == 0 ? "on" : "off");
     Serial.print(F("Telemetry auto-refresh: "));
     Serial.println(Telemetry::autoRefresh() ? F("ON") : F("OFF"));
     return;
@@ -596,6 +671,9 @@ bool Cli::waitOrAbort(uint32_t ms) {
   const uint32_t t0 = millis();
   while ((millis() - t0) < ms) {
     if (Serial.available()) {
+      while (Serial.available()) {
+        Serial.read();
+      }
       return true;
     }
     delay(20);
@@ -1638,12 +1716,14 @@ void Cli::handleLine(char *line) {
     }
   }
 
+  if (dispatchShell(cmd, rest)) {
+    return;
+  }
+
   if (strcasecmp(cmd, "help") == 0 || strcasecmp(cmd, "?") == 0) {
     printHelp();
   } else if (strcasecmp(cmd, "status") == 0) {
     printStatus();
-  } else if (strcasecmp(cmd, "config") == 0) {
-    printConfig();
   } else if (strcasecmp(cmd, "devices") == 0) {
     devices.printList();
   } else if (strcasecmp(cmd, "device") == 0) {
@@ -1696,54 +1776,291 @@ void Cli::handleLine(char *line) {
   }
 }
 
+namespace {
+
+char *trimEdge(char *s) {
+  while (*s == ' ' || *s == '\t') {
+    s++;
+  }
+  char *e = s + strlen(s);
+  while (e > s && (e[-1] == ' ' || e[-1] == '\t')) {
+    *--e = '\0';
+  }
+  return s;
+}
+
+void wipe(char *s) {
+  if (!s) {
+    return;
+  }
+  memset(s, 0, strlen(s));
+}
+
+}  // namespace
+
+void Cli::adoptSettings() {
+#if defined(ARDUINO_ARCH_ESP32)
+  const GatewayConfig &c = Settings::get();
+  _slaveId = c.slave;
+  _baudRate = c.baud;
+  _functionCode = c.fc;
+#else
+#endif
+}
+
+bool Cli::persistSetting(const char *key, const char *value) {
+#if !defined(ARDUINO_ARCH_ESP32)
+  (void)key;
+  (void)value;
+  return false;
+#else
+  char err[80];
+  err[0] = '\0';
+  if (!Settings::put(key, value, err, sizeof(err))) {
+    if (err[0]) {
+      Serial.print(F("WARNING: "));
+      Serial.println(err);
+    }
+    return false;
+  }
+  adoptSettings();
+  return true;
+#endif
+}
+
+bool Cli::secretMode() const {
+  return _mode == ConsoleMode::LoginPass || _mode == ConsoleMode::AskCur ||
+         _mode == ConsoleMode::AskNew || _mode == ConsoleMode::AskConfirm;
+}
+
+bool Cli::sessionOpen() const {
+  return _mode != ConsoleMode::LoginUser && _mode != ConsoleMode::LoginPass;
+}
+
+void Cli::buildPrompt(char *out, size_t n) const {
+  if (!out || n == 0) {
+    return;
+  }
+#if defined(ARDUINO_ARCH_ESP32)
+  switch (_mode) {
+    case ConsoleMode::LoginUser:
+      strncpy(out, "login: ", n - 1);
+      break;
+    case ConsoleMode::LoginPass:
+      strncpy(out, "Password: ", n - 1);
+      break;
+    case ConsoleMode::AskCur:
+      strncpy(out, "Current password: ", n - 1);
+      break;
+    case ConsoleMode::AskNew:
+      strncpy(out, "New password: ", n - 1);
+      break;
+    case ConsoleMode::AskConfirm:
+      strncpy(out, "Retype new password: ", n - 1);
+      break;
+    case ConsoleMode::Editor:
+      strncpy(out, "edit> ", n - 1);
+      break;
+    case ConsoleMode::Shell:
+      snprintf(out, n, "%s@%s:%s$ ", Auth::user(), Settings::hostname(),
+               Vfs::cwd());
+      break;
+  }
+#else
+  strncpy(out, "> ", n - 1);
+  (void)_mode;
+#endif
+  out[n - 1] = '\0';
+}
+
+void Cli::showPrompt() {
+  char prompt[96];
+  buildPrompt(prompt, sizeof(prompt));
+  tty.setPrompt(prompt);
+  tty.setSecret(secretMode());
+  tty.setEofLogsOut(_mode == ConsoleMode::Shell);
+  tty.printPrompt();
+}
+
+void Cli::cancelEntry() {
+  memset(_pwNew, 0, sizeof(_pwNew));
+  if (_mode == ConsoleMode::LoginPass) {
+    memset(_loginUser, 0, sizeof(_loginUser));
+    _mode = ConsoleMode::LoginUser;
+    return;
+  }
+  if (_mode == ConsoleMode::AskCur || _mode == ConsoleMode::AskNew ||
+      _mode == ConsoleMode::AskConfirm) {
+    _addingUser = false;
+    memset(_loginUser, 0, sizeof(_loginUser));
+    _mode = ConsoleMode::Shell;
+    Serial.println(F("Cancelled."));
+  }
+}
+
+void Cli::dropSession(bool tell) {
+#if defined(ARDUINO_ARCH_ESP32)
+  if (tell && Editor::dirty()) {
+    Serial.println(F("Editor closed without saving."));
+  }
+  Editor::close();
+  Auth::logout();
+  _addingUser = false;
+  memset(_pwNew, 0, sizeof(_pwNew));
+  memset(_loginUser, 0, sizeof(_loginUser));
+  _mode = ConsoleMode::LoginUser;
+  if (tell) {
+    Serial.println(F("Logged out."));
+  }
+#else
+  (void)tell;
+#endif
+}
+
+void Cli::onSubmitted(char *line) {
+#if !defined(ARDUINO_ARCH_ESP32)
+  if (line && line[0]) {
+    tty.remember(line);
+  }
+  handleLine(line);
+  return;
+#else
+  switch (_mode) {
+    case ConsoleMode::LoginUser: {
+      char *user = trimEdge(line);
+      if (!user[0]) {
+        return;
+      }
+      if (strlen(user) > 15) {
+        delay(400);
+        Serial.println(F("Login incorrect."));
+        return;
+      }
+      strncpy(_loginUser, user, sizeof(_loginUser) - 1);
+      _loginUser[sizeof(_loginUser) - 1] = '\0';
+      _mode = ConsoleMode::LoginPass;
+      return;
+    }
+    case ConsoleMode::LoginPass: {
+      const bool ok = Auth::login(_loginUser, line);
+      wipe(line);
+      if (!ok) {
+        memset(_loginUser, 0, sizeof(_loginUser));
+        _mode = ConsoleMode::LoginUser;
+        delay(400);
+        Serial.println(F("Login incorrect."));
+        return;
+      }
+      _mode = ConsoleMode::Shell;
+      _lastInputMs = millis();
+      Serial.print(F("Logged in as "));
+      Serial.println(Auth::user());
+      if (Auth::factoryPassword()) {
+        Serial.println(F("Factory password is still set. Run: passwd"));
+      }
+      Vfs::showMotd();
+      return;
+    }
+    case ConsoleMode::AskCur: {
+      const bool ok = Auth::check(Auth::user(), line);
+      wipe(line);
+      if (!ok) {
+        Serial.println(F("Authentication failure."));
+        _mode = ConsoleMode::Shell;
+        return;
+      }
+      _mode = ConsoleMode::AskNew;
+      return;
+    }
+    case ConsoleMode::AskNew: {
+      const size_t n = strlen(line);
+      if (n < 4 || n > 32) {
+        wipe(line);
+        Serial.println(F("Password must be 4..32 characters."));
+        return;
+      }
+      memcpy(_pwNew, line, n);
+      _pwNew[n] = '\0';
+      wipe(line);
+      _mode = ConsoleMode::AskConfirm;
+      return;
+    }
+    case ConsoleMode::AskConfirm: {
+      const bool match = strcmp(line, _pwNew) == 0;
+      wipe(line);
+      if (!match) {
+        memset(_pwNew, 0, sizeof(_pwNew));
+        Serial.println(F("Passwords do not match."));
+        _mode = ConsoleMode::AskNew;
+        return;
+      }
+      char err[72];
+      err[0] = '\0';
+      const bool ok = _addingUser
+                          ? Auth::addUser(_loginUser, _pwNew, err, sizeof(err))
+                          : Auth::setPassword(Auth::user(), _pwNew, err,
+                                              sizeof(err));
+      memset(_pwNew, 0, sizeof(_pwNew));
+      _addingUser = false;
+      memset(_loginUser, 0, sizeof(_loginUser));
+      _mode = ConsoleMode::Shell;
+      if (!ok) {
+        Serial.println(err[0] ? err : "Could not update password.");
+      } else {
+        Serial.println(F("Password updated."));
+      }
+      return;
+    }
+    case ConsoleMode::Editor:
+      if (!Editor::onLine(line)) {
+        _mode = ConsoleMode::Shell;
+      }
+      return;
+    case ConsoleMode::Shell:
+      if (line[0] && !strContainsIgnoreCase(line, "pass")) {
+        tty.remember(line);
+      }
+      handleLine(line);
+      return;
+  }
+#endif
+}
+
+void Cli::onHostDown() { dropSession(false); }
+
 void Cli::poll() {
-  while (Serial.available()) {
-    const char c = static_cast<char>(Serial.read());
-
-    // Ignore ANSI / CSI escape sequences (arrow keys etc.)
-    if (c == 0x1B) {
-      _inEsc = true;
-      continue;
-    }
-    if (_inEsc) {
-      if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '~') {
-        _inEsc = false;
-      }
-      continue;
-    }
-    // Bare CSI leftovers like "[A" without ESC — drop if line starts with [
-    // and looks like cursor codes when Enter pressed (handled as unknown).
-
-    if (c == '\r' || c == '\n') {
-      if (c == '\n' && _len == 0) {
-        continue;
-      }
-      _line[_len] = '\0';
+#if defined(ARDUINO_ARCH_ESP32)
+  if (sessionOpen()) {
+    const uint16_t idleMin = Settings::get().idleMin;
+    if (idleMin > 0 &&
+        (millis() - _lastInputMs) > static_cast<uint32_t>(idleMin) * 60000UL) {
       Serial.println();
-      if (_len > 0) {
-        handleLine(_line);
-      }
-      _len = 0;
-      Serial.print(F("> "));
-      continue;
-    }
-
-    if (c == 0x08 || c == 0x7F) {
-      if (_len > 0) {
-        _len--;
-        Serial.print(F("\b \b"));
-      }
-      continue;
-    }
-
-    if (c < 0x20 || c > 0x7E) {
-      continue;
-    }
-
-    if (_len + 1 < kLineMax) {
-      _line[_len++] = c;
-      Serial.write(static_cast<uint8_t>(c));
-      Serial.flush();
+      Serial.println(F("Session idle, logged out."));
+      dropSession(false);
+      showPrompt();
+      _lastInputMs = millis();
     }
   }
+#endif
+  char line[Tty::kCap];
+  const Tty::Event ev = tty.poll(line, sizeof(line));
+  if (ev == Tty::Event::None) {
+    return;
+  }
+  _lastInputMs = millis();
+  if (ev == Tty::Event::Activity) {
+    return;
+  }
+  if (ev == Tty::Event::Interrupt) {
+    cancelEntry();
+    showPrompt();
+    return;
+  }
+  if (ev == Tty::Event::Logout) {
+    dropSession(true);
+    showPrompt();
+    return;
+  }
+  onSubmitted(line);
+  showPrompt();
 }

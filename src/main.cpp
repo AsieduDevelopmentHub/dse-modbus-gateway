@@ -14,18 +14,21 @@
 void setup() {
   Serial.begin(USB_SERIAL_BAUD);
 #if defined(ARDUINO_ARCH_ESP32)
-  // Native USB CDC: don't block forever if host isn't open yet.
+  // Drop writes while nobody is listening. Once the host is open, the loop
+  // raises this so console echo cannot be discarded.
   Serial.setTxTimeoutMs(0);
 #endif
 
   rs485.begin();
   modbus.begin();
-  cli.begin();  // may print into the void if monitor not open yet — OK
+  cli.begin();
 
 #if defined(ARDUINO_ARCH_ESP32)
   Telemetry::begin();
   WifiPortal::begin();
   HttpApi::begin();
+#else
+  cli.present();
 #endif
 }
 
@@ -40,14 +43,17 @@ void loop() {
   if (hostOpen) {
     lastHostOpenMs = millis();
     if (!bannerShown) {
+      Serial.setTxTimeoutMs(20);
       delay(150);
       Serial.println();
       Serial.println(F("[USB CDC connected]"));
-      cli.printBanner();
+      cli.present();
       bannerShown = true;
     }
   } else if (bannerShown && (millis() - lastHostOpenMs) > 3000) {
     bannerShown = false;
+    Serial.setTxTimeoutMs(0);
+    cli.onHostDown();
   }
 
   WifiPortal::poll();

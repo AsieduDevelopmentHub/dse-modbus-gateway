@@ -7,16 +7,39 @@
 #include "devices/modbus_device.h"
 #include "modbus/modbus_client.h"
 
+enum class ConsoleMode : uint8_t {
+  LoginUser,
+  LoginPass,
+  Shell,
+  AskCur,
+  AskNew,
+  AskConfirm,
+  Editor,
+};
+
 class Cli {
 public:
   void begin();
+  void present();
   void poll();
-  void printBanner();
+  void onHostDown();
+  bool isShell() const { return _mode == ConsoleMode::Shell; }
 
 private:
+  void showPrompt();
+  void buildPrompt(char *out, size_t n) const;
+  bool secretMode() const;
+  bool sessionOpen() const;
+  void cancelEntry();
+  void dropSession(bool tell);
+  void onSubmitted(char *line);
+  void adoptSettings();
+  bool persistSetting(const char *key, const char *value);
+
   void printHelp();
   void printStatus();
   void printConfig();
+  bool dispatchShell(const char *cmd, char *rest);
   void handleLine(char *line);
   void cmdRead(char *args, bool hexAddress);
   void cmdRawRead(char *args);
@@ -36,6 +59,24 @@ private:
   void cmdWatch(char *args);
   void cmdDcem(char *args);
   void cmdEnvolt(char *args);
+  void cmdLogout();
+  void cmdPasswd(char *rest);
+  void cmdUser(char *rest);
+  void cmdWhoami();
+  void cmdHostname(char *rest);
+  void cmdClear();
+  void cmdUptime();
+  void cmdPwd();
+  void cmdLs(char *rest);
+  void cmdCd(char *rest);
+  void cmdCat(char *rest);
+  void cmdMkdir(char *rest);
+  void cmdRmdir(char *rest);
+  void cmdRm(char *rest);
+  void cmdCp(char *rest);
+  void cmdMv(char *rest);
+  void cmdEdit(char *rest);
+  void cmdConfig(char *rest);
   void applySelectedDevice();
   ModbusTxnInfo makeTxnInfo() const;
   bool ensureDseSelected() const;
@@ -44,14 +85,15 @@ private:
   void watchOnce();
   bool waitOrAbort(uint32_t ms);
 
-  static constexpr size_t kLineMax = 96;
-  char _line[kLineMax];
-  size_t _len = 0;
-  bool _inEsc = false;
+  ConsoleMode _mode = ConsoleMode::Shell;
+  char _loginUser[16] = {};
+  char _pwNew[33] = {};
+  bool _addingUser = false;
+  uint32_t _lastInputMs = 0;
 
-  uint8_t _slaveId;
-  uint8_t _functionCode;
-  uint32_t _baudRate;
+  uint8_t _slaveId = 1;
+  uint8_t _functionCode = 0x03;
+  uint32_t _baudRate = 9600;
 };
 
 extern Cli cli;

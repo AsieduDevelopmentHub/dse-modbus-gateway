@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "config/config.h"
+#include "config/settings.h"
 #include "telemetry/snapshot.h"
 
 namespace {
@@ -56,48 +57,58 @@ void refreshInfo() {
 
 namespace WifiPortal {
 
-void begin() {
-  buildApSsid();
-  const bool wantSta =
-      WIFI_STA_SSID[0] != '\0' && strlen(WIFI_STA_SSID) > 0;
+void startRadio() {
+  const GatewayConfig &c = Settings::get();
+  if (c.apSsid[0]) {
+    strncpy(gApSsid, c.apSsid, sizeof(gApSsid) - 1);
+    gApSsid[sizeof(gApSsid) - 1] = '\0';
+  } else {
+    buildApSsid();
+  }
 
+  const bool wantSta = c.staSsid[0] != '\0';
   WiFi.persistent(false);
   WiFi.setSleep(false);
   if (wantSta) {
     WiFi.mode(WIFI_AP_STA);
-    WiFi.begin(WIFI_STA_SSID, WIFI_STA_PASSWORD);
+    WiFi.begin(c.staSsid, c.staPass);
   } else {
     WiFi.mode(WIFI_AP);
   }
 
   // AP password must be >= 8 chars for WPA2; open AP if too short.
-  const bool openAp = strlen(WIFI_AP_PASSWORD) < 8;
+  const bool openAp = strlen(c.apPass) < 8;
   if (openAp) {
     WiFi.softAP(gApSsid);
   } else {
-    WiFi.softAP(gApSsid, WIFI_AP_PASSWORD);
+    WiFi.softAP(gApSsid, c.apPass);
   }
 
   Serial.println(F("[WiFi] Soft-AP started"));
   Serial.print(F("[WiFi] SSID: "));
   Serial.println(gApSsid);
-  if (!openAp) {
-    Serial.print(F("[WiFi] Pass: "));
-    Serial.println(WIFI_AP_PASSWORD);
+  if (openAp) {
+    Serial.println(F("[WiFi] AP is open (no password)."));
   }
   Serial.print(F("[WiFi] AP IP: "));
   Serial.println(WiFi.softAPIP());
   if (wantSta) {
     Serial.print(F("[WiFi] Joining STA: "));
-    Serial.println(WIFI_STA_SSID);
+    Serial.println(c.staSsid);
   }
 
   refreshInfo();
 }
 
+void begin() {
+  Settings::setWifiHook(startRadio);
+  startRadio();
+}
+
 void poll() { refreshInfo(); }
 
 const char *mode() { return gMode; }
+const char *ssid() { return gApSsid; }
 const char *ip() { return gIp; }
 int8_t rssi() {
   if (WiFi.status() == WL_CONNECTED) {

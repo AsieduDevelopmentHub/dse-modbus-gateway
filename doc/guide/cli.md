@@ -1,6 +1,27 @@
 # CLI usage — DSE 7320 Modbus RTU Gateway
 
-USB Serial command line on the ESP32-C3. Type a command, press Enter. Prompt is `>`.
+USB Serial command line on the ESP32-C3. The firmware echoes what you type (leave the monitor's local echo off). After login the prompt is `user@host:path$`.
+
+This is a local console login, the same account idea as SSH: username, hidden password, logout, and an idle timeout. It is not a network SSH server. Factory login is `admin` / `admin` until you change it with `passwd`.
+
+```text
+login: admin
+Password:
+admin@dse-gw:/$ help
+passwd
+config set modbus.slave 1
+ls
+cd /etc
+edit gateway.conf
+config reload
+logout
+```
+
+Line editing: Left/Right, Home/End, Up/Down history, Backspace, Delete, Tab completion, Ctrl-U (clear line), Ctrl-W (delete word), `clear` or `cls` or Ctrl-L (clear screen), Ctrl-C (cancel the line), Ctrl-D on an empty line (logout).
+
+Saved settings live in `/etc/gateway.conf`. `config set` writes that file and applies it. You can also `edit` the file, then `config reload`. `config` masks passwords; `config get wifi.ap_pass` shows the real value. Accounts are separate and are changed only with `passwd` and `user`.
+
+`edit` is a line editor (`?` lists `a`, `s`, `i`, `d`, `w`, `wq`). A full-screen editor fights this USB link; the line editor keeps the text you can see matched to the text that runs.
 
 This firmware talks to **DSE controllers** (DSE 7320, DSE 7320 MKII, and related 73xx variants). The named map under `dse7320` is that DSE family. DSE’s shared Modbus layout is sometimes called GenComm in vendor PDFs; this project does **not** target a separate GenComm board.
 
