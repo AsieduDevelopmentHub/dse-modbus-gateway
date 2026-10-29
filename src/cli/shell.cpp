@@ -12,6 +12,9 @@
 #include "fs/editor.h"
 #include "fs/vfs.h"
 #include "util/str_util.h"
+#if defined(ARDUINO_ARCH_ESP32)
+#include <Esp.h>
+#endif
 
 namespace {
 
@@ -45,7 +48,8 @@ const char *kCmds[] = {
     "readhex",    "rawread",   "rs485raw",  "set",         "crc-test",
     "diagnostic", "repeat",    "dcem",      "envolt",      "logout",
     "exit",       "whoami",    "passwd",    "user",        "hostname",
-    "uptime",     "clear",     "cls",       "pwd",         "ls",
+    "uptime",     "reboot",    "restart",   "clear",       "cls",
+    "pwd",        "ls",
     "cd",
     "cat",        "mkdir",     "rmdir",     "rm",          "cp",
     "mv",         "edit",      nullptr,
@@ -198,6 +202,18 @@ void Cli::cmdHostname(char *rest) {
 }
 
 void Cli::cmdClear() { tty.clearScreen(); }
+
+void Cli::cmdReboot(char *rest) {
+  (void)rest;
+#if !defined(ARDUINO_ARCH_ESP32)
+  Serial.println(F("Reboot is available on the ESP32."));
+#else
+  Serial.println(F("Rebooting..."));
+  Serial.flush();
+  delay(80);
+  ESP.restart();
+#endif
+}
 
 void Cli::cmdUptime() {
   const uint32_t s = millis() / 1000UL;
@@ -409,6 +425,10 @@ bool Cli::dispatchShell(const char *cmd, char *rest) {
     cmdUptime();
     return true;
   }
+  if (eq(cmd, "reboot") || eq(cmd, "restart")) {
+    cmdReboot(rest);
+    return true;
+  }
   if (eq(cmd, "clear") || eq(cmd, "cls")) {
     cmdClear();
     return true;
@@ -425,7 +445,7 @@ bool Cli::dispatchShell(const char *cmd, char *rest) {
     cmdCd(rest);
     return true;
   }
-  if (eq(cmd, "cat")) {
+  if (eq(cmd, "cat") || eq(cmd, "type")) {
     cmdCat(rest);
     return true;
   }

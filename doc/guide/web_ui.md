@@ -23,9 +23,17 @@ Optional STA: set `WIFI_STA_SSID` / `WIFI_STA_PASSWORD` at compile time. Soft-AP
 
 | Method | Path | Body |
 |--------|------|------|
-| GET | `/` | Embedded overview HTML |
+| GET | `/` | Embedded overview. **Monitor** is live status. **Configure** is the GenComm page editor. |
 | GET | `/api/status` | Full telemetry JSON (see below) |
 | GET | `/api/health` | Compact Wi-Fi + link health |
+| GET | `/api/catalog` | GenComm pages, register names, access, and the last captured values |
+| GET | `/api/read?addr=&qty=` | FC03 read, qty 1–32. `words` is the raw register list |
+| POST | `/api/write` | `{"addr":256,"words":[1]}` FC16. Addresses 4104–4105 are rejected |
+| POST | `/api/control` | `{"key":35701}` system-control write. Stop (35700) and off (35776) are rejected |
+
+Configure lists every captured GenComm page. Registers marked read/write or write-only, and unmarked registers on pages 128 and above, get a write box. Password rows send the value and its ones complement in one FC16. Read page refreshes the open page from the module. Control buttons ask before they are sent; commands that can start the set or move a breaker say so.
+
+The React app lives in `dev/iot/dse-gateway-web` (not in this firmware tree). It has the same Monitor / Configure split. `pnpm dev:mock` uses the captured snapshot and does not write to a module. `pnpm dev` sends reads and writes to the gateway.
 
 CORS `*` is enabled on `/api/*` for the React dev app.
 
@@ -59,15 +67,13 @@ Refresh interval ≈ **2.5 s** from `Telemetry::poll()` in `loop()`.
 
 ---
 
-## React app (`web/`)
+## React app (`dev/iot/dse-gateway-web`)
 
 ```bash
-cd web
+cd ../../iot/dse-gateway-web
 pnpm install
 pnpm dev          # proxy to gateway
 pnpm dev:mock     # mock JSON (no hardware)
 ```
 
-Dev server proxies `/api` to `VITE_GW_URL` (default `http://192.168.4.1`) or uses mock via `pnpm dev:mock`.
-
-See [`web/README.md`](../../web/README.md).
+Dev server proxies `/api` to `VITE_GW_URL` (default `http://192.168.4.1`) or uses mock via `pnpm dev:mock`. `tools/build_gencomm_catalog.py` writes `public/gencomm.json` into that repo when the folder is present.

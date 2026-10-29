@@ -9,6 +9,7 @@
 #include "net/http_api.h"
 #include "net/wifi_portal.h"
 #include "telemetry/snapshot.h"
+#include "uplink/uplink.h"
 #endif
 
 void setup() {
@@ -27,6 +28,7 @@ void setup() {
   Telemetry::begin();
   WifiPortal::begin();
   HttpApi::begin();
+  Uplink::begin();
 #else
   cli.present();
 #endif
@@ -59,6 +61,7 @@ void loop() {
   WifiPortal::poll();
   HttpApi::poll();
   Telemetry::poll();
+  Uplink::poll();
 #endif
 
   // Always poll RX — do not gate on Serial bool (flicker drops keystrokes).

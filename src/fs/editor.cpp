@@ -214,7 +214,8 @@ bool open(const char *path) {
   Serial.print(gCount);
   Serial.println(F(" lines) --"));
   listLines();
-  Serial.println(F("? for editor help. wq writes and quits."));
+  Serial.println(F("s <line> <text> replaces a line.  a <text> adds a line.  d <line> deletes."));
+  Serial.println(F("wq saves and quits.  q! quits without saving.  l lists again."));
   if (strcmp(gPath, Settings::path()) == 0) {
     Serial.println(F("After saving this file, run: config reload"));
   }

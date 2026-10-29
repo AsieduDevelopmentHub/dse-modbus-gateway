@@ -8,7 +8,7 @@ Also: Invendis ET1641 and future RS485 slaves.
 
 **5V isolation benches:** Arduino Mega 2560 (full DSE named map via PROGMEM) / Uno / Nano (diagnostics-only `GATEWAY_LITE`) envs in `platformio.ini` — separate ESP32 3.3V RO-level issues from firmware bugs.
 
-**Web UI (ESP32):** soft-AP + `/api/status` + local overview page; React app in [`web/`](web/). See [doc/guide/web_ui.md](doc/guide/web_ui.md).
+**Web UI (ESP32):** soft-AP + `/api/status` + embedded overview page. The React app is a separate repo at `dev/iot/dse-gateway-web`. See [doc/guide/web_ui.md](doc/guide/web_ui.md).
 
 ## Docs
 

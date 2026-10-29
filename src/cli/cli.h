@@ -66,6 +66,7 @@ private:
   void cmdHostname(char *rest);
   void cmdClear();
   void cmdUptime();
+  void cmdReboot(char *rest);
   void cmdPwd();
   void cmdLs(char *rest);
   void cmdCd(char *rest);

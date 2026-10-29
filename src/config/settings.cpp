@@ -40,6 +40,13 @@ const char *kKeys[] = {
     "wifi.ap_pass",
     "wifi.sta_ssid",
     "wifi.sta_pass",
+    "uplink.enable",
+    "uplink.host",
+    "uplink.port",
+    "uplink.path",
+    "uplink.period_s",
+    "uplink.batch",
+    "uplink.key",
     nullptr,
 };
 
@@ -86,6 +93,22 @@ bool parseU32(const char *s, uint32_t *out) {
   return true;
 }
 
+bool parseHexKey(const char *value, uint8_t out[16]) {
+  if (!value || strlen(value) != 32) {
+    return false;
+  }
+  for (size_t i = 0; i < 16; i++) {
+    char pair[3] = {value[i * 2], value[i * 2 + 1], 0};
+    char *end = nullptr;
+    const unsigned long byte = strtoul(pair, &end, 16);
+    if (end != pair + 2) {
+      return false;
+    }
+    out[i] = static_cast<uint8_t>(byte);
+  }
+  return true;
+}
+
 bool copyText(char *dst, size_t dstN, const char *value, size_t maxLen,
               bool allowEmpty) {
   const size_t n = strlen(value);
@@ -108,6 +131,11 @@ void setDefaults(GatewayConfig *c) {
   c->telemetry = false;
   strncpy(c->apPass, WIFI_AP_PASSWORD, sizeof(c->apPass) - 1);
   c->idleMin = 30;
+  c->uplinkOn = false;
+  c->uplinkPort = 8080;
+  strncpy(c->uplinkPath, "/ncu/v1/batch", sizeof(c->uplinkPath) - 1);
+  c->uplinkPeriodS = 30;
+  c->uplinkBatch = 4;
 }
 
 bool assign(GatewayConfig *c, const char *key, const char *value, char *err,
@@ -262,6 +290,72 @@ bool assign(GatewayConfig *c, const char *key, const char *value, char *err,
     }
     return true;
   }
+  if (strcmp(key, "uplink.enable") == 0) {
+    if (strEqualsIgnoreCase(value, "on") == 0) {
+      c->uplinkOn = true;
+    } else if (strEqualsIgnoreCase(value, "off") == 0) {
+      c->uplinkOn = false;
+    } else {
+      setErr(err, errN, "uplink.enable must be on or off");
+      return false;
+    }
+    return true;
+  }
+  if (strcmp(key, "uplink.host") == 0) {
+    if (!copyText(c->uplinkHost, sizeof(c->uplinkHost), value, 63, true)) {
+      setErr(err, errN, "uplink.host must be 0..63 characters");
+      return false;
+    }
+    return true;
+  }
+  if (strcmp(key, "uplink.port") == 0) {
+    uint32_t v = 0;
+    if (!parseU32(value, &v) || v == 0 || v > 65535) {
+      setErr(err, errN, "uplink.port must be 1..65535");
+      return false;
+    }
+    c->uplinkPort = static_cast<uint16_t>(v);
+    return true;
+  }
+  if (strcmp(key, "uplink.path") == 0) {
+    if (!value[0] || value[0] != '/' ||
+        !copyText(c->uplinkPath, sizeof(c->uplinkPath), value, 47, false)) {
+      setErr(err, errN, "uplink.path must start with / and fit in 47 characters");
+      return false;
+    }
+    return true;
+  }
+  if (strcmp(key, "uplink.period_s") == 0) {
+    uint32_t v = 0;
+    if (!parseU32(value, &v) || v < 15 || v > 3600) {
+      setErr(err, errN, "uplink.period_s must be 15..3600");
+      return false;
+    }
+    c->uplinkPeriodS = static_cast<uint16_t>(v);
+    return true;
+  }
+  if (strcmp(key, "uplink.batch") == 0) {
+    uint32_t v = 0;
+    if (!parseU32(value, &v) || v < 1 || v > 8) {
+      setErr(err, errN, "uplink.batch must be 1..8");
+      return false;
+    }
+    c->uplinkBatch = static_cast<uint8_t>(v);
+    return true;
+  }
+  if (strcmp(key, "uplink.key") == 0) {
+    if (!value[0]) {
+      memset(c->uplinkKey, 0, sizeof(c->uplinkKey));
+      c->uplinkKeySet = false;
+      return true;
+    }
+    if (!parseHexKey(value, c->uplinkKey)) {
+      setErr(err, errN, "uplink.key must be 32 hex characters");
+      return false;
+    }
+    c->uplinkKeySet = true;
+    return true;
+  }
   setErr(err, errN, "unknown key");
   return false;
 }
@@ -301,7 +395,14 @@ bool writeFile() {
     return false;
   }
   LittleFS.mkdir("/etc");
-  char body[800];
+  char keyHex[33];
+  keyHex[0] = '\0';
+  if (gCfg.uplinkKeySet) {
+    for (size_t i = 0; i < 16; i++) {
+      snprintf(keyHex + i * 2, 3, "%02x", gCfg.uplinkKey[i]);
+    }
+  }
+  char body[1400];
   const int n = snprintf(
       body, sizeof(body),
       "# gateway configuration\n"
@@ -318,14 +419,24 @@ bool writeFile() {
       "wifi.ap_ssid=%s\n"
       "wifi.ap_pass=%s\n"
       "wifi.sta_ssid=%s\n"
-      "wifi.sta_pass=%s\n",
+      "wifi.sta_pass=%s\n"
+      "uplink.enable=%s\n"
+      "uplink.host=%s\n"
+      "uplink.port=%u\n"
+      "uplink.path=%s\n"
+      "uplink.period_s=%u\n"
+      "uplink.batch=%u\n"
+      "uplink.key=%s\n",
       gCfg.hostname, static_cast<unsigned>(gCfg.idleMin), gCfg.device,
       static_cast<unsigned>(gCfg.slave), static_cast<unsigned long>(gCfg.baud),
       parityStr(gCfg.parity), static_cast<unsigned>(gCfg.fc),
       static_cast<unsigned long>(gCfg.settleUs),
       static_cast<unsigned long>(gCfg.predelayUs),
       gCfg.telemetry ? "on" : "off", gCfg.apSsid, gCfg.apPass, gCfg.staSsid,
-      gCfg.staPass);
+      gCfg.staPass, gCfg.uplinkOn ? "on" : "off", gCfg.uplinkHost,
+      static_cast<unsigned>(gCfg.uplinkPort), gCfg.uplinkPath,
+      static_cast<unsigned>(gCfg.uplinkPeriodS),
+      static_cast<unsigned>(gCfg.uplinkBatch), keyHex);
   if (n < 0 || n >= static_cast<int>(sizeof(body))) {
     return false;
   }
@@ -519,6 +630,28 @@ bool format(const char *key, char *out, size_t outN, bool maskSecrets) {
   } else if (strcmp(ck, "wifi.sta_pass") == 0) {
     snprintf(out, outN, "%s",
              (secret && gCfg.staPass[0]) ? "********" : gCfg.staPass);
+  } else if (strcmp(ck, "uplink.enable") == 0) {
+    snprintf(out, outN, "%s", gCfg.uplinkOn ? "on" : "off");
+  } else if (strcmp(ck, "uplink.host") == 0) {
+    snprintf(out, outN, "%s", gCfg.uplinkHost);
+  } else if (strcmp(ck, "uplink.port") == 0) {
+    snprintf(out, outN, "%u", static_cast<unsigned>(gCfg.uplinkPort));
+  } else if (strcmp(ck, "uplink.path") == 0) {
+    snprintf(out, outN, "%s", gCfg.uplinkPath);
+  } else if (strcmp(ck, "uplink.period_s") == 0) {
+    snprintf(out, outN, "%u", static_cast<unsigned>(gCfg.uplinkPeriodS));
+  } else if (strcmp(ck, "uplink.batch") == 0) {
+    snprintf(out, outN, "%u", static_cast<unsigned>(gCfg.uplinkBatch));
+  } else if (strcmp(ck, "uplink.key") == 0) {
+    if (!gCfg.uplinkKeySet) {
+      out[0] = '\0';
+    } else if (maskSecrets) {
+      snprintf(out, outN, "********");
+    } else {
+      for (size_t i = 0; i < 16 && (i * 2 + 3) <= outN; i++) {
+        snprintf(out + i * 2, outN - i * 2, "%02x", gCfg.uplinkKey[i]);
+      }
+    }
   } else {
     return false;
   }

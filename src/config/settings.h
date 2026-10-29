@@ -20,6 +20,15 @@ struct GatewayConfig {
   char staSsid[33];
   char staPass[64];
   uint16_t idleMin;
+  // Station uplink. Off until a host and a 128-bit key are set.
+  bool uplinkOn;
+  char uplinkHost[64];
+  uint16_t uplinkPort;
+  char uplinkPath[48];
+  uint16_t uplinkPeriodS;
+  uint8_t uplinkBatch;
+  uint8_t uplinkKey[16];
+  bool uplinkKeySet;
 };
 
 namespace Settings {

@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "util/str_util.h"
+
 #if defined(ARDUINO_ARCH_ESP32)
 
 #include <LittleFS.h>
@@ -14,6 +16,25 @@ char gCwd[96] = "/";
 bool gMounted = false;
 
 void fail(const __FlashStringHelper *msg) { Serial.println(msg); }
+
+bool knownFile(const char *in, char *out, size_t cap) {
+  if (!in || !in[0] || strchr(in, '/') != nullptr) {
+    return false;
+  }
+  const char *dest = nullptr;
+  if (strEqualsIgnoreCase(in, "motd") == 0 || strEqualsIgnoreCase(in, "mtd") == 0) {
+    dest = "/etc/motd";
+  } else if (strEqualsIgnoreCase(in, "conf") == 0 ||
+             strEqualsIgnoreCase(in, "gateway.conf") == 0) {
+    dest = "/etc/gateway.conf";
+  }
+  if (!dest) {
+    return false;
+  }
+  strncpy(out, dest, cap - 1);
+  out[cap - 1] = '\0';
+  return true;
+}
 
 }  // namespace
 
@@ -29,13 +50,15 @@ bool begin() {
   }
   gMounted = true;
   LittleFS.mkdir("/etc");
-  strncpy(gCwd, "/", sizeof(gCwd) - 1);
+  strncpy(gCwd, "/etc", sizeof(gCwd) - 1);
+  gCwd[sizeof(gCwd) - 1] = '\0';
   if (!LittleFS.exists("/etc/motd")) {
     File f = LittleFS.open("/etc/motd", "w");
     if (f) {
-      f.println("Type help for commands.");
-      f.println("Config file: /etc/gateway.conf");
-      f.println("Change the factory password with: passwd");
+      f.println("View:  cat motd");
+      f.println("Edit:  edit motd     or    edit conf");
+      f.println("Save:  wq            Discard: q!");
+      f.println("Config file is /etc/gateway.conf. After editing it: config reload");
       f.close();
     }
   }
@@ -52,6 +75,9 @@ bool resolve(const char *in, char *out, size_t cap) {
   }
   if (!in) {
     in = "";
+  }
+  if (knownFile(in, out, cap)) {
+    return true;
   }
   char tmp[128];
   if (in[0] == '/') {
@@ -243,7 +269,8 @@ bool cd(const char *path) {
     return false;
   }
   if (!path || !path[0]) {
-    strncpy(gCwd, "/", sizeof(gCwd) - 1);
+    strncpy(gCwd, isDir("/etc") ? "/etc" : "/", sizeof(gCwd) - 1);
+    gCwd[sizeof(gCwd) - 1] = '\0';
     return true;
   }
   char full[96];
@@ -271,11 +298,15 @@ bool cat(const char *path) {
     return false;
   }
   File f = LittleFS.open(full, "r");
-  if (!f || f.isDirectory()) {
-    if (f) {
-      f.close();
-    }
-    fail(F("Not a file."));
+  if (!f) {
+    Serial.print(F("No such file: "));
+    Serial.println(full);
+    Serial.println(F("Try: ls    cat motd    cat conf"));
+    return false;
+  }
+  if (f.isDirectory()) {
+    f.close();
+    Serial.println(F("That is a folder. Use ls."));
     return false;
   }
   size_t shown = 0;

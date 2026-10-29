@@ -572,21 +572,24 @@ ModbusResponse ModbusClient::writeMultipleRegisters(
     return empty;
   }
 
+  const bool quiet = info && info->quiet;
   const uint32_t txn = nextTxnId();
-  Serial.println(F("========================================"));
-  Serial.println(F("MODBUS RTU WRITE (FC16)"));
-  Serial.print(F("TXN #"));
-  Serial.println(txn);
-  if (info && info->deviceName) {
-    Serial.print(F("Device: "));
-    Serial.println(info->deviceName);
+  if (!quiet) {
+    Serial.println(F("========================================"));
+    Serial.println(F("MODBUS RTU WRITE (FC16)"));
+    Serial.print(F("TXN #"));
+    Serial.println(txn);
+    if (info && info->deviceName) {
+      Serial.print(F("Device: "));
+      Serial.println(info->deviceName);
+    }
+    Serial.print(F("REQUEST: slave="));
+    Serial.print(slaveId);
+    Serial.print(F(" addr="));
+    Serial.print(address);
+    Serial.print(F(" qty="));
+    Serial.println(quantity);
   }
-  Serial.print(F("REQUEST: slave="));
-  Serial.print(slaveId);
-  Serial.print(F(" addr="));
-  Serial.print(address);
-  Serial.print(F(" qty="));
-  Serial.println(quantity);
 
   // slave FC addr_hi addr_lo qty_hi qty_lo byte_count data... crc
   uint8_t req[64];
@@ -605,8 +608,10 @@ ModbusResponse ModbusClient::writeMultipleRegisters(
   const size_t payloadLen = static_cast<size_t>(7 + byteCount);
   const size_t reqLen = modbusAppendCrc(req, payloadLen);
 
-  Serial.print(F("FINAL TX BYTE ARRAY: "));
-  printHexLine("", req, reqLen);
+  if (!quiet) {
+    Serial.print(F("FINAL TX BYTE ARRAY: "));
+    printHexLine("", req, reqLen);
+  }
 
   ModbusResponse resp =
       transact(req, reqLen, slaveId, 0x10, quantity, info, true);

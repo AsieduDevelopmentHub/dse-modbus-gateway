@@ -7,13 +7,12 @@ This is a local console login, the same account idea as SSH: username, hidden pa
 ```text
 login: admin
 Password:
-admin@dse-gw:/$ help
-passwd
-config set modbus.slave 1
-ls
-cd /etc
-edit gateway.conf
+admin@dse-gw:/etc$ help
+cat motd
+cat conf
+edit conf
 config reload
+reboot
 logout
 ```
 
@@ -85,6 +84,7 @@ Other profile: `et1641` (slave 50, 9600 8N1). Named DSE commands (`get`, `iterat
 | `repeat <n> …` | Repeat parsed read, n=1–100 |
 | `crc-test` / `crctest` | Offline CRC self-test |
 | `diagnostic on\|off` | Verbose TX/RX (default off) |
+| `uplink` / `uplink now` | Encrypted batch status, or send the current batch |
 
 Commands are case-insensitive. Empty lines are ignored.
 
@@ -332,6 +332,7 @@ rs485raw 63 03 001E 1
 | Doc | Contents |
 |-----|----------|
 | [getting_started.md](getting_started.md) | Wiring, flash, ET1641 procedure |
+| [uplink.md](uplink.md) | Encrypted batched uplink |
 | [en_volt.md](en_volt.md) | Measured EN-Volt register map (slave 63) |
 | [register_map.md](../dse_register_map/register_map.md) | Named registers + scaling |
 | [register_clone_dse8610.md](../dse_register_map/register_clone_dse8610.md) | Shared DSE map notes (8610 docs overlap 7320) |

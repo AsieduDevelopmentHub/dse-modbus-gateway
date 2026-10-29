@@ -21,6 +21,9 @@
 #if defined(ARDUINO_ARCH_ESP32)
 #include "net/wifi_portal.h"
 #include "telemetry/snapshot.h"
+#if defined(ARDUINO_ARCH_ESP32)
+#include "uplink/uplink.h"
+#endif
 #include <WiFi.h>
 #endif
 
@@ -110,11 +113,11 @@ void Cli::present() {
 
 void Cli::printHelp() {
   Serial.println(F("Console:"));
-  Serial.println(F("  help | logout | whoami | passwd | clear | cls | uptime | hostname"));
+  Serial.println(F("  help | logout | whoami | passwd | reboot | clear | cls | uptime"));
   Serial.println(F("  user list | user add <name> | user del <name>"));
   Serial.println(F("  config | config keys | config get <key> | config set <key> <value>"));
   Serial.println(F("  config save | config reload | config path"));
-  Serial.println(F("  pwd | ls [path] | cd <path> | cat <file> | edit <file>"));
+  Serial.println(F("  pwd | ls | cd | cat motd | cat conf | edit motd | edit conf"));
   Serial.println(F("  mkdir <path> | rmdir <path> | rm <file> | cp <src> <dst> | mv <src> <dst>"));
   Serial.println(F("  Editing: arrows, Home/End, Tab, Ctrl-U, Ctrl-W, Ctrl-L, history"));
   Serial.println(F("Bus:"));
@@ -128,6 +131,8 @@ void Cli::printHelp() {
   Serial.println(F("  watch [n]                          (loop: comm/regs/scf flags/alarms)"));
   Serial.println(F("  alarms                             (active alarms only)"));
   Serial.println(F("  scf list|flags|<cmd>|raw <key>     (DSE control write)"));
+  Serial.println(F("  Web Configure tab                  (GenComm page read/write)"));
+  Serial.println(F("  uplink | uplink now                (encrypted batch to station)"));
   Serial.println(F("  write16 <addr> <word> [word...]    (FC16, max 16 words)"));
   Serial.println(F("  write06 <addr> <word>              (FC06 one register)"));
   Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
@@ -1770,6 +1775,14 @@ void Cli::handleLine(char *line) {
     cmdDcem(rest);
   } else if (strcasecmp(cmd, "envolt") == 0) {
     cmdEnvolt(rest);
+#if defined(ARDUINO_ARCH_ESP32)
+  } else if (strcasecmp(cmd, "uplink") == 0) {
+    if (strcasecmp(rest, "now") == 0) {
+      Uplink::kick();
+      Serial.println(F("Uplink will send the current batch on the next quiet loop."));
+    }
+    Uplink::printStatus();
+#endif
   } else {
     Serial.print(F("Unknown command: "));
     Serial.println(cmd);
@@ -1959,6 +1972,9 @@ void Cli::onSubmitted(char *line) {
         Serial.println(F("Factory password is still set. Run: passwd"));
       }
       Vfs::showMotd();
+      Serial.println(F("View: cat motd     cat conf"));
+      Serial.println(F("Edit: edit motd    edit conf     then wq to save"));
+      Serial.println(F("Reboot: reboot"));
       return;
     }
     case ConsoleMode::AskCur: {
