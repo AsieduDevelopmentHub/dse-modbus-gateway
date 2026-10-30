@@ -33,10 +33,20 @@ uplink
 
 `uplink` prints batch fill, sequence, sent, failed, dropped, heap, and the last result. The key is stored in `/etc/gateway.conf` and masked in `config`.
 
-Collector on the station side:
+Collector on the station side. Inspect a batch without storing it:
+
+```text
+python tools/ncu_inbox.py --key 00112233445566778899aabbccddeeff --listen 0.0.0.0:8080 --print-only
+```
+
+Store it. The example key is not a production key. `INGEST_SECRET` is read from the environment and is not passed on the command line.
 
 ```text
 python tools/ncu_inbox.py --key 00112233445566778899aabbccddeeff --listen 0.0.0.0:8080
 ```
 
 That process needs the `cryptography` package. A 204 response is the only ack the device needs.
+
+To store the batch, run the collector with `INGEST_URL` pointing at `https://<deployment>.convex.site/ncu/ingest` and `INGEST_SECRET` set to the same value as the Convex `INGEST_SECRET`. The device identity registered in Convex must be the 12 lowercase hex characters of the efuse MAC in bytes 6..11 of the NCU1 header. The collector does not choose an organization. If that MAC is not already registered to exactly one device and one generator, the collector answers 403 and the device keeps the batch.
+
+`t` in the plaintext is uptime in milliseconds, not a clock, so Convex stores `sourceTime` as null and uses the server receipt time. `rpm` is stored as-is. `batt10`, `hz10`, and `van10` are divided by 10. `kw100` is divided by 100. JSON null stays unavailable and is not stored as zero. A retried POST repeats the same `boot` and `seq`. The same sequence is not applied twice. A lower sequence for the same boot is ignored. A new boot id cannot be ordered against the previous one, because the device draws that id at random.
