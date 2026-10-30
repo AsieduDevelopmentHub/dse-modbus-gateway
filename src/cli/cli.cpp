@@ -133,7 +133,7 @@ void Cli::printHelp() {
   Serial.println(F("  alarms                             (active alarms only)"));
   Serial.println(F("  scf list|flags|<cmd>|raw <key>     (DSE control write)"));
   Serial.println(F("  Web Configure tab                  (GenComm page read/write)"));
-  Serial.println(F("  uplink | uplink now                (encrypted batch to station)"));
+  Serial.println(F("  uplink | uplink now | uplink heartbeat"));
   Serial.println(F("  write16 <addr> <word> [word...]    (FC16, max 16 words)"));
   Serial.println(F("  write06 <addr> <word>              (FC06 one register)"));
   Serial.println(F("  set slave <id> | set fc <03|04> | set baud <4800|9600|19200>"));
@@ -174,7 +174,7 @@ void Cli::printStatus() {
 #if defined(ARDUINO_ARCH_ESP32)
   Serial.print(F("User: "));
   Serial.println(Auth::user());
-  WifiPortal::printLine();
+  WifiPortal::printBrief();
 #endif
 }
 
@@ -1778,8 +1778,12 @@ void Cli::handleLine(char *line) {
     if (strcasecmp(rest, "now") == 0) {
       Uplink::kick();
       Serial.println(F("Uplink will send the current batch on the next quiet loop."));
+      Uplink::printStatus();
+    } else if (strcasecmp(rest, "heartbeat") == 0 || strcasecmp(rest, "ping") == 0) {
+      Uplink::heartbeat();
+    } else {
+      Uplink::printStatus();
     }
-    Uplink::printStatus();
 #endif
   } else {
     Serial.print(F("Unknown command: "));

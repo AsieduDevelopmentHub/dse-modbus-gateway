@@ -69,6 +69,17 @@ def open_packet(blob, key):
     payload = json.loads(plain.decode("utf-8"))
     if payload.get("seq") != seq or payload.get("n") != count:
         raise ValueError("header does not match plaintext")
+    if payload.get("kind") == "heartbeat":
+        if count != 0:
+            raise ValueError("heartbeat count is not valid")
+        return {
+            "seq": seq,
+            "count": 0,
+            "identity": identity,
+            "boot": payload.get("boot"),
+            "samples": [],
+            "heartbeat": True,
+        }
     samples = payload.get("s")
     if not isinstance(samples, list) or len(samples) != count or count < 1 or count > 8:
         raise ValueError("sample count is not valid")

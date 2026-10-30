@@ -15,6 +15,7 @@ const char *ip();
 int8_t rssi();
 
 void printLine();
+void printBrief();
 void printStatus();
 void printBoard();
 void scan();

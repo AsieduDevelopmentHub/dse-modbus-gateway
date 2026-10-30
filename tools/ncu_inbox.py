@@ -80,6 +80,18 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             self._finish(400, "rejected", started, identity="", count=0, accepted=0, rejected=1, reason=type(exc).__name__)
             return
+        if opened.get("heartbeat"):
+            self._finish(
+                204,
+                "heartbeat",
+                started,
+                identity=opened["identity"],
+                count=0,
+                accepted=0,
+                rejected=0,
+                seq=opened["seq"],
+            )
+            return
         if self.print_only:
             self._finish(
                 204,

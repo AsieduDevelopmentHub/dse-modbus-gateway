@@ -144,7 +144,8 @@ size_t buildPlain(char *buf, size_t cap, uint32_t seq) {
   return static_cast<size_t>(p - buf);
 }
 
-bool seal(const uint8_t *plain, size_t plainLen, uint8_t *packet, size_t *packetLen) {
+bool seal(const uint8_t *plain, size_t plainLen, uint8_t count, uint32_t seq,
+          uint8_t *packet, size_t *packetLen) {
   const GatewayConfig &cfg = Settings::get();
   if (plainLen > kPlainMax || plainLen > 65535) {
     return false;
@@ -157,9 +158,8 @@ bool seal(const uint8_t *plain, size_t plainLen, uint8_t *packet, size_t *packet
   packet[2] = 'U';
   packet[3] = '1';
   packet[4] = 1;
-  packet[5] = gCount;
+  packet[5] = count;
   memcpy(packet + 6, mac, 6);
-  const uint32_t seq = gSeq + 1;
   memcpy(packet + 12, &seq, 4);
   esp_fill_random(packet + 16, 12);
   packet[28] = static_cast<uint8_t>(plainLen & 0xff);
@@ -193,18 +193,25 @@ void noteFail(const char *why) {
   gBackoffS = step > kBackoffCapS ? kBackoffCapS : step;
 }
 
-bool postBatch(const uint8_t *packet, size_t packetLen) {
+struct HttpReply {
+  int code;
+  char why[24];
+};
+
+void setWhy(HttpReply *reply, const char *why) {
+  snprintf(reply->why, sizeof(reply->why), "%s", why);
+}
+
+HttpReply httpPost(const uint8_t *packet, size_t packetLen) {
+  HttpReply reply{};
+  reply.code = 0;
   const GatewayConfig &cfg = Settings::get();
-  if (ESP.getFreeHeap() < kHeapFloor) {
-    noteFail("low heap");
-    return false;
-  }
   WiFiClient client;
   client.setTimeout(3);
   if (!client.connect(cfg.uplinkHost, cfg.uplinkPort, kConnectMs)) {
-    noteFail("connect failed");
+    setWhy(&reply, "connect failed");
     client.stop();
-    return false;
+    return reply;
   }
   char head[180];
   const int headN = snprintf(
@@ -216,31 +223,45 @@ bool postBatch(const uint8_t *packet, size_t packetLen) {
       client.write(reinterpret_cast<const uint8_t *>(head), headN) !=
           static_cast<size_t>(headN) ||
       client.write(packet, packetLen) != packetLen) {
-    noteFail("send failed");
+    setWhy(&reply, "send failed");
     client.stop();
-    return false;
+    return reply;
   }
   char line[64];
   const int got = client.readBytesUntil('\n', line, sizeof(line) - 1);
   client.stop();
   if (got <= 0) {
-    noteFail("no response");
-    return false;
+    setWhy(&reply, "no response");
+    return reply;
   }
   line[got] = '\0';
   int code = 0;
-  if (sscanf(line, "HTTP/%*s %d", &code) != 1 || code < 200 || code > 299) {
-    char why[24];
-    snprintf(why, sizeof(why), "http %d", code);
-    noteFail(why);
+  if (sscanf(line, "HTTP/%*s %d", &code) != 1) {
+    setWhy(&reply, "bad status");
+    return reply;
+  }
+  reply.code = code;
+  snprintf(reply.why, sizeof(reply.why), "http %d", code);
+  return reply;
+}
+
+bool postBatch(const uint8_t *packet, size_t packetLen) {
+  if (ESP.getFreeHeap() < kHeapFloor) {
+    noteFail("low heap");
     return false;
   }
+  const HttpReply reply = httpPost(packet, packetLen);
+  if (reply.code < 200 || reply.code > 299) {
+    noteFail(reply.why[0] ? reply.why : "send failed");
+    return false;
+  }
+  const GatewayConfig &cfg = Settings::get();
   gSent++;
   gSeq++;
   gCount = 0;
   gBackoffS = 5;
   gForce = false;
-  snprintf(gLast, sizeof(gLast), "http %d", code);
+  snprintf(gLast, sizeof(gLast), "http %d", reply.code);
   gNextTryMs = millis() + static_cast<uint32_t>(cfg.uplinkPeriodS) * 1000ul;
   return true;
 }
@@ -262,6 +283,58 @@ void begin() {
 }
 
 void kick() { gForce = true; }
+
+void heartbeat() {
+  const GatewayConfig &cfg = Settings::get();
+  if (!cfg.uplinkOn) {
+    Serial.println(F("Uplink is off."));
+  }
+  if (!cfg.uplinkHost[0]) {
+    Serial.println(F("Heartbeat failed: no host."));
+    return;
+  }
+  if (!cfg.uplinkKeySet) {
+    Serial.println(F("Heartbeat failed: key missing."));
+    return;
+  }
+  if (!stationUp()) {
+    Serial.println(F("Heartbeat failed: STA not connected."));
+    return;
+  }
+  if (ESP.getFreeHeap() < kHeapFloor) {
+    Serial.println(F("Heartbeat failed: low heap."));
+    return;
+  }
+  char plain[96];
+  const int plainN = snprintf(plain, sizeof(plain),
+                               "{\"kind\":\"heartbeat\",\"boot\":%lu,\"seq\":0,\"n\":0}",
+                               static_cast<unsigned long>(gBoot));
+  if (plainN <= 0 || plainN >= static_cast<int>(sizeof(plain))) {
+    Serial.println(F("Heartbeat failed: packet."));
+    return;
+  }
+  static uint8_t packet[30 + 96 + 16];
+  size_t packetLen = 0;
+  if (!seal(reinterpret_cast<uint8_t *>(plain), static_cast<size_t>(plainN), 0, 0,
+            packet, &packetLen)) {
+    Serial.println(F("Heartbeat failed: encrypt."));
+    return;
+  }
+  Serial.print(F("Heartbeat "));
+  Serial.print(cfg.uplinkHost);
+  Serial.print(':');
+  Serial.print(cfg.uplinkPort);
+  Serial.print(' ');
+  Serial.println(cfg.uplinkPath);
+  const HttpReply reply = httpPost(packet, packetLen);
+  if (reply.code >= 200 && reply.code <= 299) {
+    Serial.print(F("Heartbeat ok: "));
+    Serial.println(reply.why);
+    return;
+  }
+  Serial.print(F("Heartbeat failed: "));
+  Serial.println(reply.why[0] ? reply.why : "send failed");
+}
 
 void printStatus() {
   const GatewayConfig &cfg = Settings::get();
@@ -344,7 +417,8 @@ void poll() {
   }
   static uint8_t packet[30 + kPlainMax + 16];
   size_t packetLen = 0;
-  if (!seal(reinterpret_cast<uint8_t *>(plain), plainLen, packet, &packetLen)) {
+  if (!seal(reinterpret_cast<uint8_t *>(plain), plainLen, gCount, gSeq + 1, packet,
+            &packetLen)) {
     noteFail("encrypt failed");
     return;
   }

@@ -16,6 +16,7 @@
 #include <Esp.h>
 
 #include "net/wifi_portal.h"
+#include "uplink/uplink.h"
 #endif
 
 namespace {
@@ -51,7 +52,7 @@ const char *kCmds[] = {
     "diagnostic", "repeat",    "dcem",      "envolt",      "logout",
     "exit",       "whoami",    "passwd",    "user",        "hostname",
     "uptime",     "reboot",    "restart",   "info",        "board",
-    "wifi",       "clear",     "cls",
+    "wifi",       "uplink",    "heartbeat", "clear",       "cls",
     "pwd",        "ls",
     "cd",
     "cat",        "mkdir",     "rmdir",     "rm",          "cp",
@@ -514,6 +515,14 @@ bool Cli::dispatchShell(const char *cmd, char *rest) {
   }
   if (eq(cmd, "wifi")) {
     cmdWifi(rest);
+    return true;
+  }
+  if (eq(cmd, "heartbeat")) {
+#if defined(ARDUINO_ARCH_ESP32)
+    Uplink::heartbeat();
+#else
+    Serial.println(F("Uplink heartbeat is on the ESP32 console."));
+#endif
     return true;
   }
   if (eq(cmd, "clear") || eq(cmd, "cls")) {

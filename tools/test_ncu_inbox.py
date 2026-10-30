@@ -143,6 +143,23 @@ class CollectorHttp(unittest.TestCase):
         blob = seal(plain(1, [sample(1, None)]), KEY, MAC, 1, NONCE)
         self.assertEqual(self.post(blob), 403)
 
+    def test_heartbeat_is_acknowledged_without_storing_telemetry(self):
+        def fail(url, secret, body):
+            raise AssertionError("heartbeat must not be stored")
+
+        ncu_inbox.post_convex = fail
+        blob = seal(
+            json.dumps(
+                {"kind": "heartbeat", "boot": 7, "seq": 0, "n": 0},
+                separators=(",", ":"),
+            ),
+            KEY,
+            MAC,
+            0,
+            NONCE,
+        )
+        self.assertEqual(self.post(blob), 204)
+
     def test_convex_failure_is_not_acknowledged(self):
         def broken(url, secret, body):
             raise TimeoutError("timed out")

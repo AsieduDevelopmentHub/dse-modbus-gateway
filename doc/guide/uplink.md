@@ -33,6 +33,8 @@ uplink
 
 `uplink` prints batch fill, sequence, sent, failed, dropped, heap, and the last result. The key is stored in `/etc/gateway.conf` and masked in `config`.
 
+`heartbeat` (or `uplink heartbeat`) posts one sealed probe immediately. It does not wait for a telemetry sample and it does not change the batch. `Heartbeat ok: http 204` means the station reached the collector and the collector decrypted the packet. A connect or HTTP failure is printed on that same line. The probe is not stored as telemetry.
+
 Collector on the station side. `--print-only` decrypts the batch, answers 204, drops the telemetry, and does not update Convex. The process prints that warning on startup. It is not for production.
 
 ```text

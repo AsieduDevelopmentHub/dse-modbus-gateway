@@ -232,6 +232,29 @@ int8_t rssi() {
   return 0;
 }
 
+void printBrief() {
+  refreshInfo();
+  const wifi_mode_t radio = WiFi.getMode();
+  Serial.print(F("Wi-Fi: AP "));
+  if ((radio & WIFI_AP) == 0) {
+    Serial.print(F("off"));
+  } else {
+    Serial.print(F("up "));
+    Serial.print(WiFi.softAPIP());
+  }
+  Serial.print(F(" | STA "));
+  if ((radio & WIFI_STA) == 0) {
+    Serial.println(F("off"));
+    return;
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print(F("connected "));
+    Serial.println(WiFi.localIP());
+    return;
+  }
+  Serial.println(staLink());
+}
+
 void printLine() {
   refreshInfo();
   const wifi_mode_t radio = WiFi.getMode();

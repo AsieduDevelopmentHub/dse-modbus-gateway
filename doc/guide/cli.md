@@ -98,6 +98,7 @@ Other profile: `et1641` (slave 50, 9600 8N1). Named DSE commands (`get`, `iterat
 | `crc-test` / `crctest` | Offline CRC self-test |
 | `diagnostic on\|off` | Verbose TX/RX (default off) |
 | `uplink` / `uplink now` | Encrypted batch status, or send the current batch |
+| `uplink heartbeat` / `heartbeat` | Post one probe and print whether the collector accepted it |
 
 Commands are case-insensitive. Empty lines are ignored.
 
