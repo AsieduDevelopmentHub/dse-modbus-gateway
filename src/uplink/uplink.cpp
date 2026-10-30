@@ -130,6 +130,7 @@ uint32_t gSeq = 0;
 uint32_t gSent = 0;
 uint32_t gFailed = 0;
 uint32_t gDropped = 0;
+uint32_t gOversized = 0;
 uint32_t gLastSampleMs = 0;
 uint32_t gNextTryMs = 0;
 uint32_t gBackoffS = 5;
@@ -741,7 +742,9 @@ void printStatus() {
   Serial.print(F("  failed: "));
   Serial.print(gFailed);
   Serial.print(F("  dropped: "));
-  Serial.println(gDropped);
+  Serial.print(gDropped);
+  Serial.print(F("  oversized: "));
+  Serial.println(gOversized);
   Serial.print(F("station: "));
   Serial.println(stationUp() ? F("up") : F("down"));
   Serial.print(F("heap: "));
@@ -792,7 +795,8 @@ void poll() {
     size_t bodyLen = 0;
     const uint8_t sent = fitSamples(body, sizeof(body), buildCloud, &bodyLen);
     if (sent == 0) {
-      noteFail("batch too large");
+      gOversized++;
+      noteFail(gCount == 1 ? "sample too large" : "batch too large");
       return;
     }
     postBatch(reinterpret_cast<const uint8_t *>(body), bodyLen, sent);
@@ -802,7 +806,8 @@ void poll() {
   size_t plainLen = 0;
   const uint8_t sent = fitSamples(plain, sizeof(plain), buildPlain, &plainLen);
   if (sent == 0) {
-    noteFail("batch too large");
+    gOversized++;
+    noteFail(gCount == 1 ? "sample too large" : "batch too large");
     return;
   }
   static uint8_t packet[30 + kPlainMax + 16];
