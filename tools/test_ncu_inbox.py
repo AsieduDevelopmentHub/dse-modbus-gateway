@@ -172,7 +172,7 @@ class CollectorHttp(unittest.TestCase):
 class PrintOnlyStartup(unittest.TestCase):
     def test_missing_key_still_warns_that_telemetry_is_dropped(self):
         env = os.environ.copy()
-        env.pop("NCU_KEY", None)
+        env["NCU_KEY"] = ""
         proc = subprocess.run(
             [sys.executable, os.path.join(os.path.dirname(__file__), "ncu_inbox.py"), "--print-only"],
             capture_output=True,
@@ -186,6 +186,23 @@ class PrintOnlyStartup(unittest.TestCase):
         self.assertIn("Packets are acknowledged.", proc.stderr)
         self.assertIn("Telemetry is dropped.", proc.stderr)
         self.assertIn("Convex is not updated.", proc.stderr)
+
+    def test_missing_ingest_secret_refuses_to_start(self):
+        env = os.environ.copy()
+        env["NCU_KEY"] = KEY.hex()
+        env["INGEST_URL"] = "https://example.convex.site/ncu/ingest"
+        env["INGEST_SECRET"] = ""
+        proc = subprocess.run(
+            [sys.executable, os.path.join(os.path.dirname(__file__), "ncu_inbox.py")],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=15,
+        )
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("set INGEST_SECRET", proc.stderr)
+        self.assertNotIn(KEY.hex(), proc.stderr)
+        self.assertNotIn(KEY.hex(), proc.stdout)
 
 
 if __name__ == "__main__":

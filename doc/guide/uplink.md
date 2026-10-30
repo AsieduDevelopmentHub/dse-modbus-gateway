@@ -21,19 +21,21 @@ The POST goes to the station network only. Payload encryption is AES-GCM. Put th
 `set telemetry on` is what fills the snapshot. Then:
 
 ```text
-config set uplink.host 192.168.1.20
-config set uplink.port 8080
-config set uplink.path /ncu/v1/batch
-config set uplink.period_s 30
-config set uplink.batch 4
-config set uplink.key 00112233445566778899aabbccddeeff
+config set uplink.host effervescent-kangaroo-10.convex.site
+config set uplink.port 443
+config set uplink.path /ncu/ingest
+config set uplink.bearer <ingest bearer>
 config set uplink.enable on
 uplink
 ```
 
+`uplink.bearer` is the same value as Convex `INGEST_SECRET`. `config` masks it. The gateway opens HTTPS itself and posts the sample JSON. It does not use the station collector when the bearer is set.
+
+The LAN collector remains available when `uplink.bearer` is empty. It expects the sealed NCU1 packet on port 8080:
+
 `uplink` prints batch fill, sequence, sent, failed, dropped, heap, and the last result. The key is stored in `/etc/gateway.conf` and masked in `config`.
 
-`heartbeat` (or `uplink heartbeat`) posts one sealed probe immediately. It does not wait for a telemetry sample and it does not change the batch. `Heartbeat ok: http 204` means the station reached the collector and the collector decrypted the packet. A connect or HTTP failure is printed on that same line. The probe is not stored as telemetry.
+`heartbeat` posts one probe immediately. It does not wait for a telemetry sample and it does not change the batch. `Heartbeat ok: http 204` means Convex, or the collector when no bearer is set, accepted the probe. The probe is not stored as telemetry.
 
 Collector on the station side. `--print-only` decrypts the batch, answers 204, drops the telemetry, and does not update Convex. The process prints that warning on startup. It is not for production.
 
@@ -49,6 +51,6 @@ python tools/ncu_inbox.py --key 00112233445566778899aabbccddeeff --listen 0.0.0.
 
 That process needs the `cryptography` package. A 204 response is the only ack the device needs.
 
-To store the batch, run the collector with `INGEST_URL` pointing at `https://effervescent-kangaroo-10.convex.site/ncu/ingest` and `INGEST_SECRET` set to the same value as the Convex `INGEST_SECRET`. `tools/.env` is loaded automatically and is not committed. On this Wi-Fi the gateway reaches that collector with `config set uplink.host 192.168.1.202`, port `8080`, and path `/ncu/v1/batch`. The gateway does not open the Convex URL itself. The device identity registered in Convex must be the 12 lowercase hex characters of the efuse MAC in bytes 6..11 of the NCU1 header. The collector does not choose an organization. If that MAC is not already registered to exactly one device and one generator, the collector answers 403 and the device keeps the batch.
+When `uplink.bearer` is empty, the station collector can still receive the sealed packet. `tools/.env` supplies `INGEST_URL` and `INGEST_SECRET` and is not committed. The device identity registered in Convex must be the 12 lowercase hex characters of the efuse MAC. The collector does not choose an organization. If that MAC is not already registered to exactly one device and one generator, the collector answers 403 and the device keeps the batch. With a bearer set, the gateway posts that JSON to Convex itself and the collector is not on the path.
 
 `t` in the plaintext is uptime in milliseconds, not a clock, so Convex stores `sourceTime` as null and uses the server receipt time. `rpm` is stored as-is. `batt10`, `hz10`, and `van10` are divided by 10. `kw100` is divided by 100. JSON null stays unavailable and is not stored as zero. A retried POST repeats the same `boot` and `seq`. The same sequence is not applied twice. A lower sequence for the same boot is ignored. `boot` is `esp_random()` at startup, so a delayed batch from an older boot cannot be recognized and can still replace current telemetry. The NCU1 frame is unchanged.

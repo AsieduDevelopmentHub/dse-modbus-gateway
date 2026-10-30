@@ -3,6 +3,7 @@
 #if defined(ARDUINO_ARCH_ESP32)
 
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <esp_system.h>
 #include <mbedtls/gcm.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@
 
 #include "config/settings.h"
 #include "telemetry/snapshot.h"
+#include "uplink/gts_roots.h"
 
 namespace {
 
@@ -144,6 +146,48 @@ size_t buildPlain(char *buf, size_t cap, uint32_t seq) {
   return static_cast<size_t>(p - buf);
 }
 
+void identityHex(char out[13]) {
+  uint8_t mac[6] = {};
+  const uint64_t efuse = ESP.getEfuseMac();
+  memcpy(mac, &efuse, 6);
+  for (int i = 0; i < 6; i++) {
+    snprintf(out + i * 2, 3, "%02x", mac[i]);
+  }
+  out[12] = '\0';
+}
+
+size_t buildCloud(char *buf, size_t cap, uint32_t seq) {
+  char id[13];
+  identityHex(id);
+  char *p = buf;
+  char *end = buf + cap;
+  p += snprintf(p, static_cast<size_t>(end - p),
+                "{\"identity\":\"%s\",\"boot\":%lu,\"seq\":%lu,\"samples\":[", id,
+                static_cast<unsigned long>(gBoot), static_cast<unsigned long>(seq));
+  for (uint8_t i = 0; i < gCount && p < end; i++) {
+    const Sample &s = gSamples[i];
+    p += snprintf(p, static_cast<size_t>(end - p),
+                  "%s{\"t\":%lu,\"age\":%u,\"link\":\"%s\",\"alm\":%u,",
+                  i ? "," : "", static_cast<unsigned long>(s.tMs), s.ageS,
+                  linkName(s.link), s.alarms);
+    p += appendOpt(p, end, "mode", s.flags & kHasMode, s.mode);
+    p += appendOpt(p, end, "rpm", s.flags & kHasRpm, s.rpm);
+    p += appendOpt(p, end, "batt10", s.flags & kHasBatt, s.batt10);
+    p += appendOpt(p, end, "hz10", s.flags & kHasHz, s.hz10);
+    p += appendOpt(p, end, "kw100", s.flags & kHasKw, s.kw100);
+    p += appendOpt(p, end, "van10", s.flags & kHasVan, s.van10);
+    if (p > buf && p[-1] == ',') {
+      p--;
+    }
+    p += snprintf(p, static_cast<size_t>(end - p), "}");
+  }
+  p += snprintf(p, static_cast<size_t>(end - p), "]}");
+  if (p >= end) {
+    return 0;
+  }
+  return static_cast<size_t>(p - buf);
+}
+
 bool seal(const uint8_t *plain, size_t plainLen, uint8_t count, uint32_t seq,
           uint8_t *packet, size_t *packetLen) {
   const GatewayConfig &cfg = Settings::get();
@@ -206,30 +250,53 @@ HttpReply httpPost(const uint8_t *packet, size_t packetLen) {
   HttpReply reply{};
   reply.code = 0;
   const GatewayConfig &cfg = Settings::get();
-  WiFiClient client;
-  client.setTimeout(3);
-  if (!client.connect(cfg.uplinkHost, cfg.uplinkPort, kConnectMs)) {
-    setWhy(&reply, "connect failed");
-    client.stop();
+  const bool cloud = cfg.uplinkBearer[0] != '\0';
+  if (cloud && ESP.getFreeHeap() < 50000) {
+    setWhy(&reply, "low heap");
     return reply;
   }
-  char head[180];
+  WiFiClient plain;
+  WiFiClientSecure secure;
+  Client *client = &plain;
+  bool connected = false;
+  if (cloud) {
+    secure.setCACert(GTS_ROOTS);
+    secure.setTimeout(8);
+    connected = secure.connect(cfg.uplinkHost, cfg.uplinkPort, 8000);
+    client = &secure;
+  } else {
+    plain.setTimeout(3);
+    connected = plain.connect(cfg.uplinkHost, cfg.uplinkPort, kConnectMs);
+    client = &plain;
+  }
+  if (!connected) {
+    setWhy(&reply, "connect failed");
+    client->stop();
+    return reply;
+  }
+  char head[360];
   const int headN = snprintf(
       head, sizeof(head),
-      "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/octet-stream\r\n"
+      "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: %s\r\n"
+      "%s%s%s"
       "Content-Length: %u\r\nConnection: close\r\n\r\n",
-      cfg.uplinkPath, cfg.uplinkHost, static_cast<unsigned>(packetLen));
+      cfg.uplinkPath, cfg.uplinkHost,
+      cloud ? "application/json" : "application/octet-stream",
+      cloud ? "Authorization: Bearer " : "",
+      cloud ? cfg.uplinkBearer : "",
+      cloud ? "\r\n" : "",
+      static_cast<unsigned>(packetLen));
   if (headN < 0 || headN >= static_cast<int>(sizeof(head)) ||
-      client.write(reinterpret_cast<const uint8_t *>(head), headN) !=
+      client->write(reinterpret_cast<const uint8_t *>(head), static_cast<size_t>(headN)) !=
           static_cast<size_t>(headN) ||
-      client.write(packet, packetLen) != packetLen) {
+      client->write(packet, packetLen) != packetLen) {
     setWhy(&reply, "send failed");
-    client.stop();
+    client->stop();
     return reply;
   }
   char line[64];
-  const int got = client.readBytesUntil('\n', line, sizeof(line) - 1);
-  client.stop();
+  const int got = client->readBytesUntil('\n', line, sizeof(line) - 1);
+  client->stop();
   if (got <= 0) {
     setWhy(&reply, "no response");
     return reply;
@@ -293,7 +360,7 @@ void heartbeat() {
     Serial.println(F("Heartbeat failed: no host."));
     return;
   }
-  if (!cfg.uplinkKeySet) {
+  if (!cfg.uplinkBearer[0] && !cfg.uplinkKeySet) {
     Serial.println(F("Heartbeat failed: key missing."));
     return;
   }
@@ -305,28 +372,42 @@ void heartbeat() {
     Serial.println(F("Heartbeat failed: low heap."));
     return;
   }
-  char plain[96];
-  const int plainN = snprintf(plain, sizeof(plain),
-                               "{\"kind\":\"heartbeat\",\"boot\":%lu,\"seq\":0,\"n\":0}",
-                               static_cast<unsigned long>(gBoot));
-  if (plainN <= 0 || plainN >= static_cast<int>(sizeof(plain))) {
-    Serial.println(F("Heartbeat failed: packet."));
-    return;
-  }
-  static uint8_t packet[30 + 96 + 16];
-  size_t packetLen = 0;
-  if (!seal(reinterpret_cast<uint8_t *>(plain), static_cast<size_t>(plainN), 0, 0,
-            packet, &packetLen)) {
-    Serial.println(F("Heartbeat failed: encrypt."));
-    return;
-  }
   Serial.print(F("Heartbeat "));
   Serial.print(cfg.uplinkHost);
   Serial.print(':');
   Serial.print(cfg.uplinkPort);
   Serial.print(' ');
   Serial.println(cfg.uplinkPath);
-  const HttpReply reply = httpPost(packet, packetLen);
+  HttpReply reply{};
+  if (cfg.uplinkBearer[0]) {
+    char id[13];
+    identityHex(id);
+    char body[96];
+    const int n = snprintf(body, sizeof(body),
+                           "{\"kind\":\"heartbeat\",\"identity\":\"%s\"}", id);
+    if (n <= 0 || n >= static_cast<int>(sizeof(body))) {
+      Serial.println(F("Heartbeat failed: packet."));
+      return;
+    }
+    reply = httpPost(reinterpret_cast<const uint8_t *>(body), static_cast<size_t>(n));
+  } else {
+    char plain[96];
+    const int plainN = snprintf(plain, sizeof(plain),
+                                 "{\"kind\":\"heartbeat\",\"boot\":%lu,\"seq\":0,\"n\":0}",
+                                 static_cast<unsigned long>(gBoot));
+    if (plainN <= 0 || plainN >= static_cast<int>(sizeof(plain))) {
+      Serial.println(F("Heartbeat failed: packet."));
+      return;
+    }
+    static uint8_t packet[30 + 96 + 16];
+    size_t packetLen = 0;
+    if (!seal(reinterpret_cast<uint8_t *>(plain), static_cast<size_t>(plainN), 0, 0,
+              packet, &packetLen)) {
+      Serial.println(F("Heartbeat failed: encrypt."));
+      return;
+    }
+    reply = httpPost(packet, packetLen);
+  }
   if (reply.code >= 200 && reply.code <= 299) {
     Serial.print(F("Heartbeat ok: "));
     Serial.println(reply.why);
@@ -352,6 +433,8 @@ void printStatus() {
   }
   Serial.print(F("key: "));
   Serial.println(cfg.uplinkKeySet ? F("set") : F("missing"));
+  Serial.print(F("bearer: "));
+  Serial.println(cfg.uplinkBearer[0] ? F("set") : F("missing"));
   Serial.print(F("batch: "));
   Serial.print(gCount);
   Serial.print('/');
@@ -394,7 +477,10 @@ void poll() {
       gLastSampleMs = now;
     }
   }
-  if (!cfg.uplinkOn || !cfg.uplinkKeySet || !cfg.uplinkHost[0] || gCount == 0) {
+  if (!cfg.uplinkOn || !cfg.uplinkHost[0] || gCount == 0) {
+    return;
+  }
+  if (!cfg.uplinkBearer[0] && !cfg.uplinkKeySet) {
     return;
   }
   const uint8_t want = cfg.uplinkBatch == 0 ? 1 : cfg.uplinkBatch;
@@ -407,6 +493,16 @@ void poll() {
   if (!stationUp()) {
     snprintf(gLast, sizeof(gLast), "no station");
     gNextTryMs = now + 15000ul;
+    return;
+  }
+  if (cfg.uplinkBearer[0]) {
+    char body[1200];
+    const size_t bodyLen = buildCloud(body, sizeof(body), gSeq + 1);
+    if (bodyLen == 0) {
+      noteFail("batch too large");
+      return;
+    }
+    postBatch(reinterpret_cast<const uint8_t *>(body), bodyLen);
     return;
   }
   char plain[kPlainMax];

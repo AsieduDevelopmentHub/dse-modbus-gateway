@@ -31,6 +31,8 @@ struct GatewayConfig {
   uint8_t uplinkBatch;
   uint8_t uplinkKey[16];
   bool uplinkKeySet;
+  // Bearer for HTTPS JSON to Convex. Empty keeps the LAN NCU1 collector path.
+  char uplinkBearer[65];
 };
 
 namespace Settings {

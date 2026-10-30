@@ -3,6 +3,7 @@
 #include "net/wifi_portal.h"
 
 #include <WiFi.h>
+#include <lwip/dns.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -220,7 +221,28 @@ void begin() {
   startRadio();
 }
 
-void poll() { refreshInfo(); }
+void holdStaDns() {
+  if (WiFi.status() != WL_CONNECTED) {
+    return;
+  }
+  // The soft AP is started after the station join and clears STA DNS.
+  ip_addr_t primary;
+  ip_addr_t secondary;
+  IP_ADDR4(&primary, 1, 1, 1, 1);
+  IP_ADDR4(&secondary, 8, 8, 8, 8);
+  const ip_addr_t *current = dns_getserver(0);
+  if (current && ip_addr_cmp(current, &primary)) {
+    return;
+  }
+  dns_setserver(0, &primary);
+  dns_setserver(1, &secondary);
+  Serial.println(F("[WiFi] STA DNS set to 1.1.1.1"));
+}
+
+void poll() {
+  refreshInfo();
+  holdStaDns();
+}
 
 const char *mode() { return gMode; }
 const char *ssid() { return gApSsid; }

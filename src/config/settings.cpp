@@ -49,6 +49,7 @@ const char *kKeys[] = {
     "uplink.period_s",
     "uplink.batch",
     "uplink.key",
+    "uplink.bearer",
     nullptr,
 };
 
@@ -135,8 +136,9 @@ void setDefaults(GatewayConfig *c) {
   strncpy(c->wifiMode, "auto", sizeof(c->wifiMode) - 1);
   c->idleMin = 30;
   c->uplinkOn = false;
-  c->uplinkPort = 8080;
-  strncpy(c->uplinkPath, "/ncu/v1/batch", sizeof(c->uplinkPath) - 1);
+  strncpy(c->uplinkHost, "effervescent-kangaroo-10.convex.site", sizeof(c->uplinkHost) - 1);
+  c->uplinkPort = 443;
+  strncpy(c->uplinkPath, "/ncu/ingest", sizeof(c->uplinkPath) - 1);
   c->uplinkPeriodS = 30;
   c->uplinkBatch = 4;
 }
@@ -374,6 +376,13 @@ bool assign(GatewayConfig *c, const char *key, const char *value, char *err,
     c->uplinkKeySet = true;
     return true;
   }
+  if (strcmp(key, "uplink.bearer") == 0) {
+    if (!copyText(c->uplinkBearer, sizeof(c->uplinkBearer), value, 64, true)) {
+      setErr(err, errN, "uplink.bearer must be 0..64 characters");
+      return false;
+    }
+    return true;
+  }
   setErr(err, errN, "unknown key");
   return false;
 }
@@ -420,7 +429,7 @@ bool writeFile() {
       snprintf(keyHex + i * 2, 3, "%02x", gCfg.uplinkKey[i]);
     }
   }
-  char body[1400];
+  char body[1800];
   const int n = snprintf(
       body, sizeof(body),
       "# gateway configuration\n"
@@ -445,7 +454,8 @@ bool writeFile() {
       "uplink.path=%s\n"
       "uplink.period_s=%u\n"
       "uplink.batch=%u\n"
-      "uplink.key=%s\n",
+      "uplink.key=%s\n"
+      "uplink.bearer=%s\n",
       gCfg.hostname, static_cast<unsigned>(gCfg.idleMin), gCfg.device,
       static_cast<unsigned>(gCfg.slave), static_cast<unsigned long>(gCfg.baud),
       parityStr(gCfg.parity), static_cast<unsigned>(gCfg.fc),
@@ -456,7 +466,7 @@ bool writeFile() {
       gCfg.uplinkOn ? "on" : "off", gCfg.uplinkHost,
       static_cast<unsigned>(gCfg.uplinkPort), gCfg.uplinkPath,
       static_cast<unsigned>(gCfg.uplinkPeriodS),
-      static_cast<unsigned>(gCfg.uplinkBatch), keyHex);
+      static_cast<unsigned>(gCfg.uplinkBatch), keyHex, gCfg.uplinkBearer);
   if (n < 0 || n >= static_cast<int>(sizeof(body))) {
     return false;
   }
@@ -673,6 +683,14 @@ bool format(const char *key, char *out, size_t outN, bool maskSecrets) {
       for (size_t i = 0; i < 16 && (i * 2 + 3) <= outN; i++) {
         snprintf(out + i * 2, outN - i * 2, "%02x", gCfg.uplinkKey[i]);
       }
+    }
+  } else if (strcmp(ck, "uplink.bearer") == 0) {
+    if (!gCfg.uplinkBearer[0]) {
+      out[0] = '\0';
+    } else if (maskSecrets) {
+      snprintf(out, outN, "********");
+    } else {
+      snprintf(out, outN, "%s", gCfg.uplinkBearer);
     }
   } else {
     return false;
