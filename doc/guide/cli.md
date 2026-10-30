@@ -20,6 +20,19 @@ Line editing: Left/Right, Home/End, Up/Down history, Backspace, Delete, Tab comp
 
 Saved settings live in `/etc/gateway.conf`. `config set` writes that file and applies it. You can also `edit` the file, then `config reload`. `config` masks passwords; `config get wifi.ap_pass` shows the real value. Accounts are separate and are changed only with `passwd` and `user`.
 
+`info` prints the chip, both MAC addresses, flash, free heap, and uptime. `wifi` prints whether the access point is up and whether the station link is connected, plus IP, gateway, DNS, channel, and RSSI.
+
+```text
+wifi
+wifi mode apsta
+wifi join MyNetwork secret
+wifi scan
+wifi mode sta
+wifi disconnect
+```
+
+`wifi.mode` is `auto` until you change it. `auto` keeps the setup AP and also joins a station network when `wifi.sta_ssid` is set. `wifi mode sta` turns the AP off. `wifi mode ap` keeps the AP and does not join. `wifi join` from `ap` or `off` switches to `apsta` so the setup AP stays up while the station connects.
+
 `edit` is a line editor (`?` lists `a`, `s`, `i`, `d`, `w`, `wq`). A full-screen editor fights this USB link; the line editor keeps the text you can see matched to the text that runs.
 
 This firmware talks to **DSE controllers** (DSE 7320, DSE 7320 MKII, and related 73xx variants). The named map under `dse7320` is that DSE family. DSE’s shared Modbus layout is sometimes called GenComm in vendor PDFs; this project does **not** target a separate GenComm board.

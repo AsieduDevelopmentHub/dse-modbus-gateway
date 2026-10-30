@@ -94,10 +94,7 @@ void Cli::present() {
   if (Auth::factoryPassword()) {
     Serial.println(F("Factory login: admin / admin"));
   }
-  Serial.print(F("Wi-Fi AP: "));
-  Serial.print(WifiPortal::ssid());
-  Serial.print(F("  IP "));
-  Serial.println(WifiPortal::ip());
+  WifiPortal::printLine();
 #else
   Serial.print(F("Selected: "));
   Serial.println(d.name);
@@ -113,7 +110,11 @@ void Cli::present() {
 
 void Cli::printHelp() {
   Serial.println(F("Console:"));
-  Serial.println(F("  help | logout | whoami | passwd | reboot | clear | cls | uptime"));
+  Serial.println(F("  help | logout | whoami | hostname | uptime | passwd | reboot"));
+  Serial.println(F("  info | board | clear | cls"));
+  Serial.println(F("  wifi | wifi status | wifi scan"));
+  Serial.println(F("  wifi mode auto|ap|sta|apsta|off"));
+  Serial.println(F("  wifi join <ssid> [password] | wifi disconnect"));
   Serial.println(F("  user list | user add <name> | user del <name>"));
   Serial.println(F("  config | config keys | config get <key> | config set <key> <value>"));
   Serial.println(F("  config save | config reload | config path"));
@@ -173,10 +174,7 @@ void Cli::printStatus() {
 #if defined(ARDUINO_ARCH_ESP32)
   Serial.print(F("User: "));
   Serial.println(Auth::user());
-  Serial.print(F("Wi-Fi: "));
-  Serial.print(WifiPortal::mode());
-  Serial.print(' ');
-  Serial.println(WifiPortal::ip());
+  WifiPortal::printLine();
 #endif
 }
 

@@ -11,13 +11,15 @@ Environment, never printed:
   INGEST_URL      https://<deployment>.convex.site/ncu/ingest
   NCU_KEY         optional 32 hex characters instead of --key
 
---print-only decrypts and returns 204 without writing. Use that only to
-inspect a batch. The default refuses to acknowledge a batch it did not store.
+--print-only decrypts, acknowledges, and drops the batch. Convex is not
+updated. It prints that warning on startup and is not for production.
+The default refuses to acknowledge a batch it did not store.
 """
 
 import argparse
 import json
 import os
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -149,7 +151,35 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
+def load_local_env():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8") as handle:
+        for raw in handle:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+def warn_print_only():
+    sys.stderr.write(
+        "print-only is not for production.\n"
+        "Packets are decrypted.\n"
+        "Packets are acknowledged.\n"
+        "Telemetry is dropped.\n"
+        "Convex is not updated.\n"
+    )
+    sys.stderr.flush()
+
+
 def main():
+    load_local_env()
     parser = argparse.ArgumentParser(description="Decrypt NCU1 uplink batches and store them")
     parser.add_argument("--key", default=os.environ.get("NCU_KEY", ""), help="32 hex characters, or set NCU_KEY")
     parser.add_argument("--listen", default="0.0.0.0:8080")
@@ -157,9 +187,11 @@ def main():
     parser.add_argument(
         "--print-only",
         action="store_true",
-        help="Decrypt and acknowledge without writing. The batch is then dropped by the ESP32.",
+        help="Decrypt, acknowledge, and drop the batch. Convex is not updated. Not for production.",
     )
     args = parser.parse_args()
+    if args.print_only:
+        warn_print_only()
     if not args.key:
         raise SystemExit("pass --key or set NCU_KEY")
     if not args.print_only and not args.ingest_url:

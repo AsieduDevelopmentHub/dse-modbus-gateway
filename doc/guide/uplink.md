@@ -33,7 +33,7 @@ uplink
 
 `uplink` prints batch fill, sequence, sent, failed, dropped, heap, and the last result. The key is stored in `/etc/gateway.conf` and masked in `config`.
 
-Collector on the station side. Inspect a batch without storing it:
+Collector on the station side. `--print-only` decrypts the batch, answers 204, drops the telemetry, and does not update Convex. The process prints that warning on startup. It is not for production.
 
 ```text
 python tools/ncu_inbox.py --key 00112233445566778899aabbccddeeff --listen 0.0.0.0:8080 --print-only
@@ -47,6 +47,6 @@ python tools/ncu_inbox.py --key 00112233445566778899aabbccddeeff --listen 0.0.0.
 
 That process needs the `cryptography` package. A 204 response is the only ack the device needs.
 
-To store the batch, run the collector with `INGEST_URL` pointing at `https://<deployment>.convex.site/ncu/ingest` and `INGEST_SECRET` set to the same value as the Convex `INGEST_SECRET`. The device identity registered in Convex must be the 12 lowercase hex characters of the efuse MAC in bytes 6..11 of the NCU1 header. The collector does not choose an organization. If that MAC is not already registered to exactly one device and one generator, the collector answers 403 and the device keeps the batch.
+To store the batch, run the collector with `INGEST_URL` pointing at `https://effervescent-kangaroo-10.convex.site/ncu/ingest` and `INGEST_SECRET` set to the same value as the Convex `INGEST_SECRET`. `tools/.env` is loaded automatically and is not committed. On this Wi-Fi the gateway reaches that collector with `config set uplink.host 192.168.1.202`, port `8080`, and path `/ncu/v1/batch`. The gateway does not open the Convex URL itself. The device identity registered in Convex must be the 12 lowercase hex characters of the efuse MAC in bytes 6..11 of the NCU1 header. The collector does not choose an organization. If that MAC is not already registered to exactly one device and one generator, the collector answers 403 and the device keeps the batch.
 
-`t` in the plaintext is uptime in milliseconds, not a clock, so Convex stores `sourceTime` as null and uses the server receipt time. `rpm` is stored as-is. `batt10`, `hz10`, and `van10` are divided by 10. `kw100` is divided by 100. JSON null stays unavailable and is not stored as zero. A retried POST repeats the same `boot` and `seq`. The same sequence is not applied twice. A lower sequence for the same boot is ignored. A new boot id cannot be ordered against the previous one, because the device draws that id at random.
+`t` in the plaintext is uptime in milliseconds, not a clock, so Convex stores `sourceTime` as null and uses the server receipt time. `rpm` is stored as-is. `batt10`, `hz10`, and `van10` are divided by 10. `kw100` is divided by 100. JSON null stays unavailable and is not stored as zero. A retried POST repeats the same `boot` and `seq`. The same sequence is not applied twice. A lower sequence for the same boot is ignored. `boot` is `esp_random()` at startup, so a delayed batch from an older boot cannot be recognized and can still replace current telemetry. The NCU1 frame is unchanged.

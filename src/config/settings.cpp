@@ -24,6 +24,7 @@ constexpr const char *kPath = "/etc/gateway.conf";
 GatewayConfig gCfg;
 bool gLoaded = false;
 void (*gWifiHook)() = nullptr;
+int gWifiHold = 0;
 
 const char *kKeys[] = {
     "hostname",
@@ -40,6 +41,7 @@ const char *kKeys[] = {
     "wifi.ap_pass",
     "wifi.sta_ssid",
     "wifi.sta_pass",
+    "wifi.mode",
     "uplink.enable",
     "uplink.host",
     "uplink.port",
@@ -130,6 +132,7 @@ void setDefaults(GatewayConfig *c) {
   c->predelayUs = RS485_TX_PRE_DELAY_US;
   c->telemetry = false;
   strncpy(c->apPass, WIFI_AP_PASSWORD, sizeof(c->apPass) - 1);
+  strncpy(c->wifiMode, "auto", sizeof(c->wifiMode) - 1);
   c->idleMin = 30;
   c->uplinkOn = false;
   c->uplinkPort = 8080;
@@ -290,6 +293,21 @@ bool assign(GatewayConfig *c, const char *key, const char *value, char *err,
     }
     return true;
   }
+  if (strcmp(key, "wifi.mode") == 0) {
+    const char *canon = nullptr;
+    if (strEqualsIgnoreCase(value, "auto") == 0) canon = "auto";
+    else if (strEqualsIgnoreCase(value, "ap") == 0) canon = "ap";
+    else if (strEqualsIgnoreCase(value, "sta") == 0) canon = "sta";
+    else if (strEqualsIgnoreCase(value, "apsta") == 0) canon = "apsta";
+    else if (strEqualsIgnoreCase(value, "off") == 0) canon = "off";
+    if (!canon) {
+      setErr(err, errN, "wifi.mode must be auto, ap, sta, apsta, or off");
+      return false;
+    }
+    strncpy(c->wifiMode, canon, sizeof(c->wifiMode) - 1);
+    c->wifiMode[sizeof(c->wifiMode) - 1] = '\0';
+    return true;
+  }
   if (strcmp(key, "uplink.enable") == 0) {
     if (strEqualsIgnoreCase(value, "on") == 0) {
       c->uplinkOn = true;
@@ -377,7 +395,7 @@ void applyKey(const char *key) {
     return;
   }
   if (strncmp(key, "wifi.", 5) == 0) {
-    if (gWifiHook) {
+    if (gWifiHold == 0 && gWifiHook) {
       gWifiHook();
     }
     return;
@@ -420,6 +438,7 @@ bool writeFile() {
       "wifi.ap_pass=%s\n"
       "wifi.sta_ssid=%s\n"
       "wifi.sta_pass=%s\n"
+      "wifi.mode=%s\n"
       "uplink.enable=%s\n"
       "uplink.host=%s\n"
       "uplink.port=%u\n"
@@ -433,7 +452,8 @@ bool writeFile() {
       static_cast<unsigned long>(gCfg.settleUs),
       static_cast<unsigned long>(gCfg.predelayUs),
       gCfg.telemetry ? "on" : "off", gCfg.apSsid, gCfg.apPass, gCfg.staSsid,
-      gCfg.staPass, gCfg.uplinkOn ? "on" : "off", gCfg.uplinkHost,
+      gCfg.staPass, gCfg.wifiMode[0] ? gCfg.wifiMode : "auto",
+      gCfg.uplinkOn ? "on" : "off", gCfg.uplinkHost,
       static_cast<unsigned>(gCfg.uplinkPort), gCfg.uplinkPath,
       static_cast<unsigned>(gCfg.uplinkPeriodS),
       static_cast<unsigned>(gCfg.uplinkBatch), keyHex);
@@ -630,6 +650,8 @@ bool format(const char *key, char *out, size_t outN, bool maskSecrets) {
   } else if (strcmp(ck, "wifi.sta_pass") == 0) {
     snprintf(out, outN, "%s",
              (secret && gCfg.staPass[0]) ? "********" : gCfg.staPass);
+  } else if (strcmp(ck, "wifi.mode") == 0) {
+    snprintf(out, outN, "%s", gCfg.wifiMode[0] ? gCfg.wifiMode : "auto");
   } else if (strcmp(ck, "uplink.enable") == 0) {
     snprintf(out, outN, "%s", gCfg.uplinkOn ? "on" : "off");
   } else if (strcmp(ck, "uplink.host") == 0) {
@@ -684,6 +706,19 @@ void printSummary() {
 
 void setWifiHook(void (*fn)()) { gWifiHook = fn; }
 
+void holdApply(bool hold) {
+  if (hold) {
+    gWifiHold++;
+    return;
+  }
+  if (gWifiHold > 0) {
+    gWifiHold--;
+  }
+  if (gWifiHold == 0 && gWifiHook) {
+    gWifiHook();
+  }
+}
+
 }  // namespace Settings
 
 #else
@@ -737,6 +772,7 @@ void printKeys() {
 }
 void printSummary() {}
 void setWifiHook(void (*)()) {}
+void holdApply(bool) {}
 
 }  // namespace Settings
 

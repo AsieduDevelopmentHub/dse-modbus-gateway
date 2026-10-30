@@ -4,6 +4,8 @@
 .vscode/launch.json
 .vscode/ipch
 *.pyc
+.env
+tools/.env
 .DS_Store
 gpt.md
 _crops/

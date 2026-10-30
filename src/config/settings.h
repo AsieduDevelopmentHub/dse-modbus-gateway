@@ -19,6 +19,8 @@ struct GatewayConfig {
   char apPass[64];
   char staSsid[33];
   char staPass[64];
+  // auto | ap | sta | apsta | off. auto keeps the AP and joins STA when an SSID is set.
+  char wifiMode[8];
   uint16_t idleMin;
   // Station uplink. Off until a host and a 128-bit key are set.
   bool uplinkOn;
@@ -45,5 +47,8 @@ bool format(const char *key, char *out, size_t outN, bool maskSecrets);
 void printKeys();
 void printSummary();
 void setWifiHook(void (*fn)());
+// While held, wifi.* changes are saved but the radio is not restarted.
+// The matching release applies them once.
+void holdApply(bool hold);
 
 }  // namespace Settings

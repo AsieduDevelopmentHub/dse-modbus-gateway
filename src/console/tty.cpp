@@ -134,13 +134,8 @@ void Tty::printPrompt() {
 }
 
 void Tty::clearScreen() {
-  // CSI clear for terminals that honor it, then blank lines so a monitor
-  // that ignores escape sequences still scrolls the old text off screen.
-  rawStr("\033[2J\033[3J\033[H\f");
-  char blank[81];
-  memset(blank, '\n', 80);
-  blank[80] = '\0';
-  rawStr(blank);
+  // Erase the display and put the cursor on the first line, then redraw.
+  rawStr("\033[2J\033[3J\033[H");
   redraw();
 }
 

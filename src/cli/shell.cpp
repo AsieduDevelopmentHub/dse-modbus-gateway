@@ -14,6 +14,8 @@
 #include "util/str_util.h"
 #if defined(ARDUINO_ARCH_ESP32)
 #include <Esp.h>
+
+#include "net/wifi_portal.h"
 #endif
 
 namespace {
@@ -48,7 +50,8 @@ const char *kCmds[] = {
     "readhex",    "rawread",   "rs485raw",  "set",         "crc-test",
     "diagnostic", "repeat",    "dcem",      "envolt",      "logout",
     "exit",       "whoami",    "passwd",    "user",        "hostname",
-    "uptime",     "reboot",    "restart",   "clear",       "cls",
+    "uptime",     "reboot",    "restart",   "info",        "board",
+    "wifi",       "clear",     "cls",
     "pwd",        "ls",
     "cd",
     "cat",        "mkdir",     "rmdir",     "rm",          "cp",
@@ -212,6 +215,82 @@ void Cli::cmdReboot(char *rest) {
   Serial.flush();
   delay(80);
   ESP.restart();
+#endif
+}
+
+void Cli::cmdInfo(char *rest) {
+  (void)rest;
+#if !defined(ARDUINO_ARCH_ESP32)
+  Serial.println(F("Board info is on the ESP32 console."));
+#else
+  WifiPortal::printBoard();
+#endif
+}
+
+void Cli::cmdWifi(char *rest) {
+#if !defined(ARDUINO_ARCH_ESP32)
+  (void)rest;
+  Serial.println(F("Wi-Fi commands are on the ESP32 console."));
+  return;
+#else
+  char *sub = strtok(rest, " \t");
+  if (!sub || eq(sub, "status")) {
+    WifiPortal::printStatus();
+    return;
+  }
+  if (eq(sub, "scan")) {
+    WifiPortal::scan();
+    return;
+  }
+  if (eq(sub, "disconnect")) {
+    WifiPortal::disconnectSta();
+    return;
+  }
+  if (eq(sub, "mode")) {
+    char *mode = strtok(nullptr, " \t");
+    if (!mode) {
+      Serial.println(F("Usage: wifi mode auto|ap|sta|apsta|off"));
+      return;
+    }
+    if (persistSetting("wifi.mode", mode)) {
+      Serial.println(F("Wi-Fi mode applied."));
+      WifiPortal::printLine();
+    }
+    return;
+  }
+  if (eq(sub, "join")) {
+    char *ssid = strtok(nullptr, " \t");
+    char *pass = strtok(nullptr, "");
+    if (!ssid || !ssid[0]) {
+      Serial.println(F("Usage: wifi join <ssid> [password]"));
+      return;
+    }
+    if (!pass) {
+      pass = const_cast<char *>("");
+    } else {
+      pass = trim(pass);
+    }
+    Settings::holdApply(true);
+    bool ok = persistSetting("wifi.sta_ssid", ssid);
+    if (ok) {
+      ok = persistSetting("wifi.sta_pass", pass);
+    }
+    if (ok) {
+      const char *cur = Settings::get().wifiMode;
+      if (eq(cur, "ap") || eq(cur, "off")) {
+        ok = persistSetting("wifi.mode", "apsta");
+      }
+    }
+    Settings::holdApply(false);
+    if (ok) {
+      Serial.println(F("Joining. STA can take a few seconds."));
+      WifiPortal::printLine();
+    }
+    return;
+  }
+  Serial.println(F("Usage: wifi | wifi status | wifi scan"));
+  Serial.println(F("       wifi mode auto|ap|sta|apsta|off"));
+  Serial.println(F("       wifi join <ssid> [password] | wifi disconnect"));
 #endif
 }
 
@@ -427,6 +506,14 @@ bool Cli::dispatchShell(const char *cmd, char *rest) {
   }
   if (eq(cmd, "reboot") || eq(cmd, "restart")) {
     cmdReboot(rest);
+    return true;
+  }
+  if (eq(cmd, "info") || eq(cmd, "board")) {
+    cmdInfo(rest);
+    return true;
+  }
+  if (eq(cmd, "wifi")) {
+    cmdWifi(rest);
     return true;
   }
   if (eq(cmd, "clear") || eq(cmd, "cls")) {
