@@ -2047,6 +2047,36 @@ void Cli::onSubmitted(char *line) {
 void Cli::onHostDown() { dropSession(false); }
 
 void Cli::poll() {
+  // Nested calls come from Telemetry's idle hook during Modbus refresh.
+  // Echo keystrokes immediately, but defer Enter / logout until the outer
+  // poll so a command cannot start a second bus transaction mid-refresh.
+  if (_inPoll) {
+    char line[Tty::kCap];
+    const Tty::Event ev = tty.poll(line, sizeof(line));
+    if (ev == Tty::Event::None) {
+      return;
+    }
+    _lastInputMs = millis();
+    if (ev == Tty::Event::Activity) {
+      return;
+    }
+    if (ev == Tty::Event::Interrupt) {
+      _deferredInterrupt = true;
+      return;
+    }
+    if (ev == Tty::Event::Logout) {
+      _deferredLogout = true;
+      return;
+    }
+    if (!_hasDeferredLine) {
+      strncpy(_deferredLine, line, sizeof(_deferredLine) - 1);
+      _deferredLine[sizeof(_deferredLine) - 1] = '\0';
+      _hasDeferredLine = true;
+    }
+    return;
+  }
+
+  _inPoll = true;
 #if defined(ARDUINO_ARCH_ESP32)
   if (sessionOpen()) {
     const uint16_t idleMin = Settings::get().idleMin;
@@ -2061,24 +2091,42 @@ void Cli::poll() {
   }
 #endif
   char line[Tty::kCap];
-  const Tty::Event ev = tty.poll(line, sizeof(line));
+  Tty::Event ev = tty.poll(line, sizeof(line));
+  if (ev == Tty::Event::None && _hasDeferredLine) {
+    strncpy(line, _deferredLine, sizeof(line) - 1);
+    line[sizeof(line) - 1] = '\0';
+    _hasDeferredLine = false;
+    _deferredLine[0] = '\0';
+    ev = Tty::Event::Line;
+  } else if (ev == Tty::Event::None && _deferredInterrupt) {
+    _deferredInterrupt = false;
+    ev = Tty::Event::Interrupt;
+  } else if (ev == Tty::Event::None && _deferredLogout) {
+    _deferredLogout = false;
+    ev = Tty::Event::Logout;
+  }
   if (ev == Tty::Event::None) {
+    _inPoll = false;
     return;
   }
   _lastInputMs = millis();
   if (ev == Tty::Event::Activity) {
+    _inPoll = false;
     return;
   }
   if (ev == Tty::Event::Interrupt) {
     cancelEntry();
     showPrompt();
+    _inPoll = false;
     return;
   }
   if (ev == Tty::Event::Logout) {
     dropSession(true);
     showPrompt();
+    _inPoll = false;
     return;
   }
   onSubmitted(line);
   showPrompt();
+  _inPoll = false;
 }

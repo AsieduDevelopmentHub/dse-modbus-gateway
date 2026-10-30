@@ -26,6 +26,7 @@ void setup() {
 
 #if defined(ARDUINO_ARCH_ESP32)
   Telemetry::begin();
+  Telemetry::setIdleHook([]() { cli.poll(); });
   WifiPortal::begin();
   HttpApi::begin();
   Uplink::begin();
@@ -35,6 +36,10 @@ void setup() {
 }
 
 void loop() {
+  // Drain USB console first so echo stays snappy even when telemetry or
+  // uplink work later in the loop takes longer.
+  cli.poll();
+
 #if defined(ARDUINO_ARCH_ESP32)
   // ESP32-C3 HWCDC: Serial's bool can flicker. Debounce so we don't spam the
   // banner or skip RX polling while the user is typing.
@@ -45,7 +50,7 @@ void loop() {
   if (hostOpen) {
     lastHostOpenMs = millis();
     if (!bannerShown) {
-      Serial.setTxTimeoutMs(20);
+      Serial.setTxTimeoutMs(50);
       delay(150);
       Serial.println();
       Serial.println(F("[USB CDC connected]"));
@@ -62,8 +67,6 @@ void loop() {
   HttpApi::poll();
   Telemetry::poll();
   Uplink::poll();
-#endif
-
-  // Always poll RX — do not gate on Serial bool (flicker drops keystrokes).
   cli.poll();
+#endif
 }

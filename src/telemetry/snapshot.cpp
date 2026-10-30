@@ -15,7 +15,14 @@ namespace {
 TelemetrySnapshot gSnap;
 uint32_t gLastRefreshMs = 0;
 bool gAutoRefresh = false;  // CLI owns the bus until "set telemetry on"
+void (*gIdleHook)() = nullptr;
 constexpr uint32_t kRefreshIntervalMs = 2500;
+
+void yieldIdle() {
+  if (gIdleHook) {
+    gIdleHook();
+  }
+}
 
 void setErr(const char *msg) {
   strncpy(gSnap.lastError, msg ? msg : "", sizeof(gSnap.lastError) - 1);
@@ -287,12 +294,17 @@ void refreshNow() {
   uint8_t fail = 0;
 
   auto batch = [&](uint16_t addr, uint16_t qty) {
+    yieldIdle();
     if (readBatch(slaveId, addr, qty)) {
       ok++;
     } else {
       fail++;
     }
-    delay(20);
+    const uint32_t until = millis() + 20;
+    while (static_cast<int32_t>(until - millis()) > 0) {
+      yieldIdle();
+      delay(1);
+    }
   };
 
   // Same ranges as CLI iterate basic + power + alarms
@@ -346,6 +358,8 @@ void setWifiInfo(const char *mode, const char *ip, int8_t rssi) {
 void setAutoRefresh(bool enabled) { gAutoRefresh = enabled; }
 
 bool autoRefresh() { return gAutoRefresh; }
+
+void setIdleHook(void (*fn)()) { gIdleHook = fn; }
 
 void poll() {
   const uint32_t now = millis();

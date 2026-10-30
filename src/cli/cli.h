@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include "console/tty.h"
 #include "devices/dse7320_registers.h"
 #include "devices/dse_scf.h"
 #include "devices/modbus_device.h"
@@ -91,7 +92,12 @@ private:
   ConsoleMode _mode = ConsoleMode::Shell;
   char _loginUser[16] = {};
   char _pwNew[33] = {};
+  char _deferredLine[Tty::kCap] = {};
   bool _addingUser = false;
+  bool _inPoll = false;
+  bool _hasDeferredLine = false;
+  bool _deferredInterrupt = false;
+  bool _deferredLogout = false;
   uint32_t _lastInputMs = 0;
 
   uint8_t _slaveId = 1;

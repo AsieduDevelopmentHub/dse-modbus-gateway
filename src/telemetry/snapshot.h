@@ -132,6 +132,8 @@ void begin();
 void poll();  // call from loop(); refreshes every few seconds when idle
 void setAutoRefresh(bool enabled);
 bool autoRefresh();
+// Called between Modbus batches so USB console echo stays responsive.
+void setIdleHook(void (*fn)());
 const TelemetrySnapshot &get();
 void setWifiInfo(const char *mode, const char *ip, int8_t rssi);
 

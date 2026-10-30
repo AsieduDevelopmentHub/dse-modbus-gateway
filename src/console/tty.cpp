@@ -20,7 +20,7 @@ int gHistWalk = 0;
 void rawBytes(const uint8_t *data, size_t len) {
   size_t off = 0;
   const uint32_t t0 = millis();
-  while (off < len && (millis() - t0) < 40) {
+  while (off < len && (millis() - t0) < 80) {
     const size_t n = Serial.write(data + off, len - off);
     if (n == 0) {
       delay(1);
@@ -407,11 +407,16 @@ Tty::Event Tty::feed(uint8_t c, char *out, size_t outCap) {
     if (_cursor == 0) {
       return Event::Activity;
     }
+    const bool atEnd = (_cursor == _len);
     memmove(_line + _cursor - 1, _line + _cursor, _len - _cursor);
     _cursor--;
     _len--;
     _line[_len] = '\0';
-    redraw();
+    if (!_secret && atEnd) {
+      rawStr("\b \b");
+    } else if (!_secret) {
+      redraw();
+    }
     return Event::Activity;
   }
 
@@ -424,12 +429,19 @@ Tty::Event Tty::feed(uint8_t c, char *out, size_t outCap) {
     return Event::Activity;
   }
 
+  const bool atEnd = (_cursor == _len);
   memmove(_line + _cursor + 1, _line + _cursor, _len - _cursor);
   _line[_cursor] = static_cast<char>(c);
   _len++;
   _cursor++;
   _line[_len] = '\0';
-  redraw();
+  // Typing at the end only needs the new character. Full redraw is for
+  // insert/delete in the middle and costs a full USB CDC frame each key.
+  if (!_secret && atEnd) {
+    rawByte(c);
+  } else if (!_secret) {
+    redraw();
+  }
   return Event::Activity;
 }
 
