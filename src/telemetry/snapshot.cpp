@@ -69,6 +69,102 @@ void applyDecoded(const char *key, const DseDecodedValue &v) {
   } else if (strcmp(key, "gen_pct_kw") == 0) {
     gSnap.hasGenPctKw = true;
     gSnap.genPctKw = v.engineering;
+  } else if (strcmp(key, "gen_vab") == 0) {
+    gSnap.hasGenVab = true;
+    gSnap.genVab = v.engineering;
+  } else if (strcmp(key, "gen_vbc") == 0) {
+    gSnap.hasGenVbc = true;
+    gSnap.genVbc = v.engineering;
+  } else if (strcmp(key, "gen_vca") == 0) {
+    gSnap.hasGenVca = true;
+    gSnap.genVca = v.engineering;
+  } else if (strcmp(key, "oil_press") == 0) {
+    gSnap.hasOil = true;
+    gSnap.oilKpa = v.engineering;
+  } else if (strcmp(key, "oil_temp") == 0) {
+    gSnap.hasOilTemp = true;
+    gSnap.oilTempC = v.engineering;
+  } else if (strcmp(key, "coolant_temp") == 0) {
+    gSnap.hasCoolant = true;
+    gSnap.coolantC = v.engineering;
+  } else if (strcmp(key, "fuel_level") == 0) {
+    gSnap.hasFuel = true;
+    gSnap.fuelPct = v.engineering;
+  } else if (strcmp(key, "mains_freq") == 0) {
+    gSnap.hasMainsHz = true;
+    gSnap.mainsHz = v.engineering;
+  } else if (strcmp(key, "mains_van") == 0) {
+    gSnap.hasMainsVan = true;
+    gSnap.mainsVan = v.engineering;
+  } else if (strcmp(key, "mains_vbn") == 0) {
+    gSnap.hasMainsVbn = true;
+    gSnap.mainsVbn = v.engineering;
+  } else if (strcmp(key, "mains_vcn") == 0) {
+    gSnap.hasMainsVcn = true;
+    gSnap.mainsVcn = v.engineering;
+  } else if (strcmp(key, "mains_vab") == 0) {
+    gSnap.hasMainsVab = true;
+    gSnap.mainsVab = v.engineering;
+  } else if (strcmp(key, "mains_vbc") == 0) {
+    gSnap.hasMainsVbc = true;
+    gSnap.mainsVbc = v.engineering;
+  } else if (strcmp(key, "mains_vca") == 0) {
+    gSnap.hasMainsVca = true;
+    gSnap.mainsVca = v.engineering;
+  } else if (strcmp(key, "charge_alt_v") == 0) {
+    gSnap.hasChargeAlt = true;
+    gSnap.chargeAltV = v.engineering;
+  } else if (strcmp(key, "gen_pa") == 0) {
+    gSnap.hasGenPa = true;
+    gSnap.genPaW = v.engineering;
+  } else if (strcmp(key, "gen_pb") == 0) {
+    gSnap.hasGenPb = true;
+    gSnap.genPbW = v.engineering;
+  } else if (strcmp(key, "gen_pc") == 0) {
+    gSnap.hasGenPc = true;
+    gSnap.genPcW = v.engineering;
+  } else if (strcmp(key, "gen_sa") == 0) {
+    gSnap.hasGenSa = true;
+    gSnap.genSaVa = v.engineering;
+  } else if (strcmp(key, "gen_sb") == 0) {
+    gSnap.hasGenSb = true;
+    gSnap.genSbVa = v.engineering;
+  } else if (strcmp(key, "gen_sc") == 0) {
+    gSnap.hasGenSc = true;
+    gSnap.genScVa = v.engineering;
+  } else if (strcmp(key, "gen_s_tot") == 0) {
+    gSnap.hasGenSTot = true;
+    gSnap.genSTotVa = v.engineering;
+  } else if (strcmp(key, "gen_qa") == 0) {
+    gSnap.hasGenQa = true;
+    gSnap.genQaVar = v.engineering;
+  } else if (strcmp(key, "gen_qb") == 0) {
+    gSnap.hasGenQb = true;
+    gSnap.genQbVar = v.engineering;
+  } else if (strcmp(key, "gen_qc") == 0) {
+    gSnap.hasGenQc = true;
+    gSnap.genQcVar = v.engineering;
+  } else if (strcmp(key, "gen_q_tot") == 0) {
+    gSnap.hasGenQTot = true;
+    gSnap.genQTotVar = v.engineering;
+  } else if (strcmp(key, "gen_pfa") == 0) {
+    gSnap.hasGenPfa = true;
+    gSnap.genPfa = v.engineering;
+  } else if (strcmp(key, "gen_pfb") == 0) {
+    gSnap.hasGenPfb = true;
+    gSnap.genPfb = v.engineering;
+  } else if (strcmp(key, "gen_pfc") == 0) {
+    gSnap.hasGenPfc = true;
+    gSnap.genPfc = v.engineering;
+  } else if (strcmp(key, "gen_pf") == 0) {
+    gSnap.hasGenPf = true;
+    gSnap.genPf = v.engineering;
+  } else if (strcmp(key, "eng_status_alt") == 0) {
+    gSnap.hasEngStatusAlt = true;
+    gSnap.engStatusAltCode = static_cast<uint16_t>(v.rawU);
+  } else if (strcmp(key, "ctrl_status") == 0) {
+    gSnap.hasCtrlStatus = true;
+    gSnap.ctrlStatusCode = static_cast<uint16_t>(v.rawU);
   }
 }
 

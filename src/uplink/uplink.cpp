@@ -2,9 +2,11 @@
 
 #if defined(ARDUINO_ARCH_ESP32)
 
+#include <Preferences.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <esp_system.h>
+#include <math.h>
 #include <mbedtls/gcm.h>
 #include <stdio.h>
 #include <string.h>
@@ -16,7 +18,7 @@
 namespace {
 
 constexpr size_t kMaxSamples = 8;
-constexpr size_t kPlainMax = 768;
+constexpr size_t kPlainMax = 6144;
 constexpr uint32_t kHeapFloor = 24576;
 constexpr uint32_t kConnectMs = 3000;
 constexpr uint32_t kBackoffCapS = 900;
@@ -25,7 +27,7 @@ struct Sample {
   uint32_t tMs = 0;
   uint16_t ageS = 0;
   uint8_t link = 0;
-  uint8_t flags = 0;
+  uint64_t flags = 0;
   uint8_t mode = 0;
   uint8_t alarms = 0;
   int16_t rpm = 0;
@@ -33,18 +35,97 @@ struct Sample {
   int16_t hz10 = 0;
   int16_t kw100 = 0;
   int16_t van10 = 0;
+  int16_t vbn10 = 0;
+  int16_t vcn10 = 0;
+  int16_t vab10 = 0;
+  int16_t vbc10 = 0;
+  int16_t vca10 = 0;
+  int16_t ia10 = 0;
+  int16_t ib10 = 0;
+  int16_t ic10 = 0;
+  int16_t pct100 = 0;
+  int16_t oil = 0;
+  int16_t oilc = 0;
+  int16_t cool = 0;
+  int16_t fuel = 0;
+  int16_t mhz10 = 0;
+  int16_t mvan10 = 0;
+  int16_t mvbn10 = 0;
+  int16_t mvcn10 = 0;
+  int16_t mvab10 = 0;
+  int16_t mvbc10 = 0;
+  int16_t mvca10 = 0;
+  uint16_t eng = 0;
+  int16_t chg10 = 0;
+  int32_t pa = 0;
+  int32_t pb = 0;
+  int32_t pc = 0;
+  int32_t sa = 0;
+  int32_t sb = 0;
+  int32_t sc = 0;
+  int32_t stot = 0;
+  int32_t qa = 0;
+  int32_t qb = 0;
+  int32_t qc = 0;
+  int32_t qtot = 0;
+  int16_t pfa = 0;
+  int16_t pfb = 0;
+  int16_t pfc = 0;
+  int16_t pf = 0;
+  uint16_t eng2 = 0;
+  uint16_t ctrl = 0;
 };
 
-constexpr uint8_t kHasRpm = 1;
-constexpr uint8_t kHasBatt = 2;
-constexpr uint8_t kHasHz = 4;
-constexpr uint8_t kHasKw = 8;
-constexpr uint8_t kHasVan = 16;
-constexpr uint8_t kHasMode = 32;
+constexpr uint64_t kHasRpm = 1ull;
+constexpr uint64_t kHasBatt = 2ull;
+constexpr uint64_t kHasHz = 4ull;
+constexpr uint64_t kHasKw = 8ull;
+constexpr uint64_t kHasVan = 16ull;
+constexpr uint64_t kHasMode = 32ull;
+constexpr uint64_t kHasVbn = 1ull << 6;
+constexpr uint64_t kHasVcn = 1ull << 7;
+constexpr uint64_t kHasVab = 1ull << 8;
+constexpr uint64_t kHasVbc = 1ull << 9;
+constexpr uint64_t kHasVca = 1ull << 10;
+constexpr uint64_t kHasIa = 1ull << 11;
+constexpr uint64_t kHasIb = 1ull << 12;
+constexpr uint64_t kHasIc = 1ull << 13;
+constexpr uint64_t kHasPct = 1ull << 14;
+constexpr uint64_t kHasOil = 1ull << 15;
+constexpr uint64_t kHasOilC = 1ull << 16;
+constexpr uint64_t kHasCool = 1ull << 17;
+constexpr uint64_t kHasFuel = 1ull << 18;
+constexpr uint64_t kHasMhz = 1ull << 19;
+constexpr uint64_t kHasMvan = 1ull << 20;
+constexpr uint64_t kHasMvbn = 1ull << 21;
+constexpr uint64_t kHasMvcn = 1ull << 22;
+constexpr uint64_t kHasMvab = 1ull << 23;
+constexpr uint64_t kHasMvbc = 1ull << 24;
+constexpr uint64_t kHasMvca = 1ull << 25;
+constexpr uint64_t kHasEng = 1ull << 26;
+constexpr uint64_t kHasChg = 1ull << 27;
+constexpr uint64_t kHasPa = 1ull << 28;
+constexpr uint64_t kHasPb = 1ull << 29;
+constexpr uint64_t kHasPc = 1ull << 30;
+constexpr uint64_t kHasSa = 1ull << 31;
+constexpr uint64_t kHasSb = 1ull << 32;
+constexpr uint64_t kHasSc = 1ull << 33;
+constexpr uint64_t kHasStot = 1ull << 34;
+constexpr uint64_t kHasQa = 1ull << 35;
+constexpr uint64_t kHasQb = 1ull << 36;
+constexpr uint64_t kHasQc = 1ull << 37;
+constexpr uint64_t kHasQtot = 1ull << 38;
+constexpr uint64_t kHasPfa = 1ull << 39;
+constexpr uint64_t kHasPfb = 1ull << 40;
+constexpr uint64_t kHasPfc = 1ull << 41;
+constexpr uint64_t kHasPf = 1ull << 42;
+constexpr uint64_t kHasEng2 = 1ull << 43;
+constexpr uint64_t kHasCtrl = 1ull << 44;
 
 Sample gSamples[kMaxSamples];
 uint8_t gCount = 0;
 uint32_t gBoot = 0;
+uint32_t gEpoch = 0;
 uint32_t gSeq = 0;
 uint32_t gSent = 0;
 uint32_t gFailed = 0;
@@ -68,6 +149,65 @@ const char *linkName(uint8_t code) {
   if (code == 2) return "degraded";
   if (code == 3) return "fail";
   return "unknown";
+}
+
+bool storeI16(float engineering, float scale, int16_t *out) {
+  if (!isfinite(engineering)) {
+    return false;
+  }
+  const float scaled = engineering * scale;
+  if (scaled > 32767.f || scaled < -32768.f) {
+    return false;
+  }
+  *out = static_cast<int16_t>(lroundf(scaled));
+  return true;
+}
+
+bool storeI32(float engineering, float scale, int32_t *out) {
+  if (!isfinite(engineering)) {
+    return false;
+  }
+  const double scaled = static_cast<double>(engineering) * static_cast<double>(scale);
+  if (scaled > 2147483647.0 || scaled < -2147483648.0) {
+    return false;
+  }
+  *out = static_cast<int32_t>(lround(scaled));
+  return true;
+}
+
+uint32_t loadEpoch() {
+  Preferences prefs;
+  if (!prefs.begin("dse-uplink", false)) {
+    return 0;
+  }
+  uint32_t epoch = prefs.getUInt("epoch", 0);
+  if (epoch < 0xffffffffu) {
+    epoch += 1;
+  }
+  if (prefs.putUInt("epoch", epoch) == 0) {
+    prefs.end();
+    return 0;
+  }
+  prefs.end();
+  return epoch;
+}
+
+void setExtra32(Sample &s, uint64_t bit, bool present, float engineering, float scale, int32_t *out) {
+  if (!present) {
+    return;
+  }
+  if (storeI32(engineering, scale, out)) {
+    s.flags |= bit;
+  }
+}
+
+void setExtra(Sample &s, uint64_t bit, bool present, float engineering, float scale, int16_t *out) {
+  if (!present) {
+    return;
+  }
+  if (storeI16(engineering, scale, out)) {
+    s.flags |= bit;
+  }
 }
 
 void capture(const TelemetrySnapshot &snap) {
@@ -104,7 +244,57 @@ void capture(const TelemetrySnapshot &snap) {
   }
   if (snap.hasGenVan) {
     s.flags |= kHasVan;
-    s.van10 = static_cast<int16_t>(snap.genVan * 10.f);
+    if (!storeI16(snap.genVan, 10.f, &s.van10)) {
+      s.flags &= ~kHasVan;
+    }
+  }
+  setExtra(s, kHasVbn, snap.hasGenVbn, snap.genVbn, 10.f, &s.vbn10);
+  setExtra(s, kHasVcn, snap.hasGenVcn, snap.genVcn, 10.f, &s.vcn10);
+  setExtra(s, kHasVab, snap.hasGenVab, snap.genVab, 10.f, &s.vab10);
+  setExtra(s, kHasVbc, snap.hasGenVbc, snap.genVbc, 10.f, &s.vbc10);
+  setExtra(s, kHasVca, snap.hasGenVca, snap.genVca, 10.f, &s.vca10);
+  setExtra(s, kHasIa, snap.hasGenIa, snap.genIa, 10.f, &s.ia10);
+  setExtra(s, kHasIb, snap.hasGenIb, snap.genIb, 10.f, &s.ib10);
+  setExtra(s, kHasIc, snap.hasGenIc, snap.genIc, 10.f, &s.ic10);
+  setExtra(s, kHasPct, snap.hasGenPctKw, snap.genPctKw, 100.f, &s.pct100);
+  setExtra(s, kHasOil, snap.hasOil, snap.oilKpa, 1.f, &s.oil);
+  setExtra(s, kHasOilC, snap.hasOilTemp, snap.oilTempC, 1.f, &s.oilc);
+  setExtra(s, kHasCool, snap.hasCoolant, snap.coolantC, 1.f, &s.cool);
+  setExtra(s, kHasFuel, snap.hasFuel, snap.fuelPct, 1.f, &s.fuel);
+  setExtra(s, kHasMhz, snap.hasMainsHz, snap.mainsHz, 10.f, &s.mhz10);
+  setExtra(s, kHasMvan, snap.hasMainsVan, snap.mainsVan, 10.f, &s.mvan10);
+  setExtra(s, kHasMvbn, snap.hasMainsVbn, snap.mainsVbn, 10.f, &s.mvbn10);
+  setExtra(s, kHasMvcn, snap.hasMainsVcn, snap.mainsVcn, 10.f, &s.mvcn10);
+  setExtra(s, kHasMvab, snap.hasMainsVab, snap.mainsVab, 10.f, &s.mvab10);
+  setExtra(s, kHasMvbc, snap.hasMainsVbc, snap.mainsVbc, 10.f, &s.mvbc10);
+  setExtra(s, kHasMvca, snap.hasMainsVca, snap.mainsVca, 10.f, &s.mvca10);
+  if (snap.hasEngStatus) {
+    s.flags |= kHasEng;
+    s.eng = snap.engStatusCode;
+  }
+  setExtra(s, kHasChg, snap.hasChargeAlt, snap.chargeAltV, 10.f, &s.chg10);
+  setExtra32(s, kHasPa, snap.hasGenPa, snap.genPaW, 1.f, &s.pa);
+  setExtra32(s, kHasPb, snap.hasGenPb, snap.genPbW, 1.f, &s.pb);
+  setExtra32(s, kHasPc, snap.hasGenPc, snap.genPcW, 1.f, &s.pc);
+  setExtra32(s, kHasSa, snap.hasGenSa, snap.genSaVa, 1.f, &s.sa);
+  setExtra32(s, kHasSb, snap.hasGenSb, snap.genSbVa, 1.f, &s.sb);
+  setExtra32(s, kHasSc, snap.hasGenSc, snap.genScVa, 1.f, &s.sc);
+  setExtra32(s, kHasStot, snap.hasGenSTot, snap.genSTotVa, 1.f, &s.stot);
+  setExtra32(s, kHasQa, snap.hasGenQa, snap.genQaVar, 1.f, &s.qa);
+  setExtra32(s, kHasQb, snap.hasGenQb, snap.genQbVar, 1.f, &s.qb);
+  setExtra32(s, kHasQc, snap.hasGenQc, snap.genQcVar, 1.f, &s.qc);
+  setExtra32(s, kHasQtot, snap.hasGenQTot, snap.genQTotVar, 1.f, &s.qtot);
+  setExtra(s, kHasPfa, snap.hasGenPfa, snap.genPfa, 100.f, &s.pfa);
+  setExtra(s, kHasPfb, snap.hasGenPfb, snap.genPfb, 100.f, &s.pfb);
+  setExtra(s, kHasPfc, snap.hasGenPfc, snap.genPfc, 100.f, &s.pfc);
+  setExtra(s, kHasPf, snap.hasGenPf, snap.genPf, 100.f, &s.pf);
+  if (snap.hasEngStatusAlt) {
+    s.flags |= kHasEng2;
+    s.eng2 = snap.engStatusAltCode;
+  }
+  if (snap.hasCtrlStatus) {
+    s.flags |= kHasCtrl;
+    s.ctrl = snap.ctrlStatusCode;
   }
 }
 
@@ -115,14 +305,14 @@ int appendOpt(char *p, char *end, const char *key, bool present, long value) {
   return snprintf(p, static_cast<size_t>(end - p), "\"%s\":null,", key);
 }
 
-size_t buildPlain(char *buf, size_t cap, uint32_t seq) {
+size_t buildPlain(char *buf, size_t cap, uint32_t seq, uint8_t count) {
   char *p = buf;
   char *end = buf + cap;
   p += snprintf(p, static_cast<size_t>(end - p),
                 "{\"boot\":%lu,\"seq\":%lu,\"n\":%u,\"s\":[",
                 static_cast<unsigned long>(gBoot),
-                static_cast<unsigned long>(seq), gCount);
-  for (uint8_t i = 0; i < gCount && p < end; i++) {
+                static_cast<unsigned long>(seq), count);
+  for (uint8_t i = 0; i < count && p < end; i++) {
     const Sample &s = gSamples[i];
     p += snprintf(p, static_cast<size_t>(end - p),
                   "%s{\"t\":%lu,\"age\":%u,\"link\":\"%s\",\"alm\":%u,",
@@ -134,6 +324,45 @@ size_t buildPlain(char *buf, size_t cap, uint32_t seq) {
     p += appendOpt(p, end, "hz10", s.flags & kHasHz, s.hz10);
     p += appendOpt(p, end, "kw100", s.flags & kHasKw, s.kw100);
     p += appendOpt(p, end, "van10", s.flags & kHasVan, s.van10);
+    p += appendOpt(p, end, "vbn10", s.flags & kHasVbn, s.vbn10);
+    p += appendOpt(p, end, "vcn10", s.flags & kHasVcn, s.vcn10);
+    p += appendOpt(p, end, "vab10", s.flags & kHasVab, s.vab10);
+    p += appendOpt(p, end, "vbc10", s.flags & kHasVbc, s.vbc10);
+    p += appendOpt(p, end, "vca10", s.flags & kHasVca, s.vca10);
+    p += appendOpt(p, end, "ia10", s.flags & kHasIa, s.ia10);
+    p += appendOpt(p, end, "ib10", s.flags & kHasIb, s.ib10);
+    p += appendOpt(p, end, "ic10", s.flags & kHasIc, s.ic10);
+    p += appendOpt(p, end, "pct100", s.flags & kHasPct, s.pct100);
+    p += appendOpt(p, end, "oil", s.flags & kHasOil, s.oil);
+    p += appendOpt(p, end, "oilc", s.flags & kHasOilC, s.oilc);
+    p += appendOpt(p, end, "cool", s.flags & kHasCool, s.cool);
+    p += appendOpt(p, end, "fuel", s.flags & kHasFuel, s.fuel);
+    p += appendOpt(p, end, "mhz10", s.flags & kHasMhz, s.mhz10);
+    p += appendOpt(p, end, "mvan10", s.flags & kHasMvan, s.mvan10);
+    p += appendOpt(p, end, "mvbn10", s.flags & kHasMvbn, s.mvbn10);
+    p += appendOpt(p, end, "mvcn10", s.flags & kHasMvcn, s.mvcn10);
+    p += appendOpt(p, end, "mvab10", s.flags & kHasMvab, s.mvab10);
+    p += appendOpt(p, end, "mvbc10", s.flags & kHasMvbc, s.mvbc10);
+    p += appendOpt(p, end, "mvca10", s.flags & kHasMvca, s.mvca10);
+    p += appendOpt(p, end, "eng", s.flags & kHasEng, s.eng);
+    p += appendOpt(p, end, "chg10", s.flags & kHasChg, s.chg10);
+    p += appendOpt(p, end, "pa", s.flags & kHasPa, s.pa);
+    p += appendOpt(p, end, "pb", s.flags & kHasPb, s.pb);
+    p += appendOpt(p, end, "pc", s.flags & kHasPc, s.pc);
+    p += appendOpt(p, end, "sa", s.flags & kHasSa, s.sa);
+    p += appendOpt(p, end, "sb", s.flags & kHasSb, s.sb);
+    p += appendOpt(p, end, "sc", s.flags & kHasSc, s.sc);
+    p += appendOpt(p, end, "stot", s.flags & kHasStot, s.stot);
+    p += appendOpt(p, end, "qa", s.flags & kHasQa, s.qa);
+    p += appendOpt(p, end, "qb", s.flags & kHasQb, s.qb);
+    p += appendOpt(p, end, "qc", s.flags & kHasQc, s.qc);
+    p += appendOpt(p, end, "qtot", s.flags & kHasQtot, s.qtot);
+    p += appendOpt(p, end, "pfa", s.flags & kHasPfa, s.pfa);
+    p += appendOpt(p, end, "pfb", s.flags & kHasPfb, s.pfb);
+    p += appendOpt(p, end, "pfc", s.flags & kHasPfc, s.pfc);
+    p += appendOpt(p, end, "pf", s.flags & kHasPf, s.pf);
+    p += appendOpt(p, end, "eng2", s.flags & kHasEng2, s.eng2);
+    p += appendOpt(p, end, "ctrl", s.flags & kHasCtrl, s.ctrl);
     if (p > buf && p[-1] == ',') {
       p--;
     }
@@ -156,15 +385,16 @@ void identityHex(char out[13]) {
   out[12] = '\0';
 }
 
-size_t buildCloud(char *buf, size_t cap, uint32_t seq) {
+size_t buildCloud(char *buf, size_t cap, uint32_t seq, uint8_t count) {
   char id[13];
   identityHex(id);
   char *p = buf;
   char *end = buf + cap;
   p += snprintf(p, static_cast<size_t>(end - p),
-                "{\"identity\":\"%s\",\"boot\":%lu,\"seq\":%lu,\"samples\":[", id,
-                static_cast<unsigned long>(gBoot), static_cast<unsigned long>(seq));
-  for (uint8_t i = 0; i < gCount && p < end; i++) {
+                "{\"v\":2,\"identity\":\"%s\",\"boot\":%lu,\"epoch\":%lu,\"seq\":%lu,\"samples\":[",
+                id, static_cast<unsigned long>(gBoot), static_cast<unsigned long>(gEpoch),
+                static_cast<unsigned long>(seq));
+  for (uint8_t i = 0; i < count && p < end; i++) {
     const Sample &s = gSamples[i];
     p += snprintf(p, static_cast<size_t>(end - p),
                   "%s{\"t\":%lu,\"age\":%u,\"link\":\"%s\",\"alm\":%u,",
@@ -176,6 +406,45 @@ size_t buildCloud(char *buf, size_t cap, uint32_t seq) {
     p += appendOpt(p, end, "hz10", s.flags & kHasHz, s.hz10);
     p += appendOpt(p, end, "kw100", s.flags & kHasKw, s.kw100);
     p += appendOpt(p, end, "van10", s.flags & kHasVan, s.van10);
+    p += appendOpt(p, end, "vbn10", s.flags & kHasVbn, s.vbn10);
+    p += appendOpt(p, end, "vcn10", s.flags & kHasVcn, s.vcn10);
+    p += appendOpt(p, end, "vab10", s.flags & kHasVab, s.vab10);
+    p += appendOpt(p, end, "vbc10", s.flags & kHasVbc, s.vbc10);
+    p += appendOpt(p, end, "vca10", s.flags & kHasVca, s.vca10);
+    p += appendOpt(p, end, "ia10", s.flags & kHasIa, s.ia10);
+    p += appendOpt(p, end, "ib10", s.flags & kHasIb, s.ib10);
+    p += appendOpt(p, end, "ic10", s.flags & kHasIc, s.ic10);
+    p += appendOpt(p, end, "pct100", s.flags & kHasPct, s.pct100);
+    p += appendOpt(p, end, "oil", s.flags & kHasOil, s.oil);
+    p += appendOpt(p, end, "oilc", s.flags & kHasOilC, s.oilc);
+    p += appendOpt(p, end, "cool", s.flags & kHasCool, s.cool);
+    p += appendOpt(p, end, "fuel", s.flags & kHasFuel, s.fuel);
+    p += appendOpt(p, end, "mhz10", s.flags & kHasMhz, s.mhz10);
+    p += appendOpt(p, end, "mvan10", s.flags & kHasMvan, s.mvan10);
+    p += appendOpt(p, end, "mvbn10", s.flags & kHasMvbn, s.mvbn10);
+    p += appendOpt(p, end, "mvcn10", s.flags & kHasMvcn, s.mvcn10);
+    p += appendOpt(p, end, "mvab10", s.flags & kHasMvab, s.mvab10);
+    p += appendOpt(p, end, "mvbc10", s.flags & kHasMvbc, s.mvbc10);
+    p += appendOpt(p, end, "mvca10", s.flags & kHasMvca, s.mvca10);
+    p += appendOpt(p, end, "eng", s.flags & kHasEng, s.eng);
+    p += appendOpt(p, end, "chg10", s.flags & kHasChg, s.chg10);
+    p += appendOpt(p, end, "pa", s.flags & kHasPa, s.pa);
+    p += appendOpt(p, end, "pb", s.flags & kHasPb, s.pb);
+    p += appendOpt(p, end, "pc", s.flags & kHasPc, s.pc);
+    p += appendOpt(p, end, "sa", s.flags & kHasSa, s.sa);
+    p += appendOpt(p, end, "sb", s.flags & kHasSb, s.sb);
+    p += appendOpt(p, end, "sc", s.flags & kHasSc, s.sc);
+    p += appendOpt(p, end, "stot", s.flags & kHasStot, s.stot);
+    p += appendOpt(p, end, "qa", s.flags & kHasQa, s.qa);
+    p += appendOpt(p, end, "qb", s.flags & kHasQb, s.qb);
+    p += appendOpt(p, end, "qc", s.flags & kHasQc, s.qc);
+    p += appendOpt(p, end, "qtot", s.flags & kHasQtot, s.qtot);
+    p += appendOpt(p, end, "pfa", s.flags & kHasPfa, s.pfa);
+    p += appendOpt(p, end, "pfb", s.flags & kHasPfb, s.pfb);
+    p += appendOpt(p, end, "pfc", s.flags & kHasPfc, s.pfc);
+    p += appendOpt(p, end, "pf", s.flags & kHasPf, s.pf);
+    p += appendOpt(p, end, "eng2", s.flags & kHasEng2, s.eng2);
+    p += appendOpt(p, end, "ctrl", s.flags & kHasCtrl, s.ctrl);
     if (p > buf && p[-1] == ',') {
       p--;
     }
@@ -312,7 +581,7 @@ HttpReply httpPost(const uint8_t *packet, size_t packetLen) {
   return reply;
 }
 
-bool postBatch(const uint8_t *packet, size_t packetLen) {
+bool postBatch(const uint8_t *packet, size_t packetLen, uint8_t sent) {
   if (ESP.getFreeHeap() < kHeapFloor) {
     noteFail("low heap");
     return false;
@@ -325,12 +594,32 @@ bool postBatch(const uint8_t *packet, size_t packetLen) {
   const GatewayConfig &cfg = Settings::get();
   gSent++;
   gSeq++;
-  gCount = 0;
+  if (sent < gCount) {
+    memmove(&gSamples[0], &gSamples[sent], (gCount - sent) * sizeof(Sample));
+    gCount = static_cast<uint8_t>(gCount - sent);
+  } else {
+    gCount = 0;
+  }
   gBackoffS = 5;
-  gForce = false;
+  gForce = gCount > 0;
   snprintf(gLast, sizeof(gLast), "http %d", reply.code);
-  gNextTryMs = millis() + static_cast<uint32_t>(cfg.uplinkPeriodS) * 1000ul;
+  gNextTryMs = gCount == 0
+                   ? millis() + static_cast<uint32_t>(cfg.uplinkPeriodS) * 1000ul
+                   : millis();
   return true;
+}
+
+uint8_t fitSamples(char *buf, size_t cap,
+                   size_t (*build)(char *, size_t, uint32_t, uint8_t), size_t *outLen) {
+  for (uint8_t n = gCount; n > 0; n--) {
+    const size_t len = build(buf, cap, gSeq + 1, n);
+    if (len > 0) {
+      *outLen = len;
+      return n;
+    }
+  }
+  *outLen = 0;
+  return 0;
 }
 
 bool stationUp() {
@@ -342,6 +631,7 @@ bool stationUp() {
 namespace Uplink {
 
 void begin() {
+  gEpoch = loadEpoch();
   gBoot = esp_random();
   if (gBoot == 0) {
     gBoot = 1;
@@ -435,6 +725,8 @@ void printStatus() {
   Serial.println(cfg.uplinkKeySet ? F("set") : F("missing"));
   Serial.print(F("bearer: "));
   Serial.println(cfg.uplinkBearer[0] ? F("set") : F("missing"));
+  Serial.print(F("epoch: "));
+  Serial.println(gEpoch);
   Serial.print(F("batch: "));
   Serial.print(gCount);
   Serial.print('/');
@@ -496,29 +788,31 @@ void poll() {
     return;
   }
   if (cfg.uplinkBearer[0]) {
-    char body[1200];
-    const size_t bodyLen = buildCloud(body, sizeof(body), gSeq + 1);
-    if (bodyLen == 0) {
+    static char body[7168];
+    size_t bodyLen = 0;
+    const uint8_t sent = fitSamples(body, sizeof(body), buildCloud, &bodyLen);
+    if (sent == 0) {
       noteFail("batch too large");
       return;
     }
-    postBatch(reinterpret_cast<const uint8_t *>(body), bodyLen);
+    postBatch(reinterpret_cast<const uint8_t *>(body), bodyLen, sent);
     return;
   }
-  char plain[kPlainMax];
-  const size_t plainLen = buildPlain(plain, sizeof(plain), gSeq + 1);
-  if (plainLen == 0) {
+  static char plain[kPlainMax];
+  size_t plainLen = 0;
+  const uint8_t sent = fitSamples(plain, sizeof(plain), buildPlain, &plainLen);
+  if (sent == 0) {
     noteFail("batch too large");
     return;
   }
   static uint8_t packet[30 + kPlainMax + 16];
   size_t packetLen = 0;
-  if (!seal(reinterpret_cast<uint8_t *>(plain), plainLen, gCount, gSeq + 1, packet,
+  if (!seal(reinterpret_cast<uint8_t *>(plain), plainLen, sent, gSeq + 1, packet,
             &packetLen)) {
     noteFail("encrypt failed");
     return;
   }
-  postBatch(packet, packetLen);
+  postBatch(packet, packetLen, sent);
 }
 
 }  // namespace Uplink
