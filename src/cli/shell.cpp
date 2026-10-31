@@ -14,6 +14,7 @@
 #include "util/str_util.h"
 #if defined(ARDUINO_ARCH_ESP32)
 #include <Esp.h>
+#include <WiFi.h>
 
 #include "net/wifi_portal.h"
 #include "uplink/uplink.h"
@@ -284,8 +285,13 @@ void Cli::cmdWifi(char *rest) {
     }
     Settings::holdApply(false);
     if (ok) {
-      Serial.println(F("Joining. STA can take a few seconds."));
-      WifiPortal::printLine();
+      Serial.println(F("Joining..."));
+      WifiPortal::waitForSta(12000);
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println(F("Still not connected. Try: wifi mode sta"));
+        Serial.println(F("Then: wifi join <ssid> [password]"));
+        Serial.println(F("Or set the password with: config set wifi.sta_pass ..."));
+      }
     }
     return;
   }

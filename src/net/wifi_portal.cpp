@@ -177,12 +177,8 @@ void startRadio() {
   WiFi.mode(mode);
   WiFi.setAutoReconnect(plan.sta);
 
-  if (!plan.sta) {
-    WiFi.disconnect(false, false);
-  } else if (c.staSsid[0]) {
-    WiFi.begin(c.staSsid, c.staPass);
-  }
-
+  // Soft-AP must start before WiFi.begin. Starting it afterward tears down an
+  // in-progress station join on ESP32 (common after AP+STA restarts).
   if (plan.ap) {
     const bool openAp = strlen(c.apPass) < 8;
     if (openAp) {
@@ -199,6 +195,12 @@ void startRadio() {
     }
   } else {
     WiFi.softAPdisconnect(true);
+  }
+
+  if (!plan.sta) {
+    WiFi.disconnect(false, false);
+  } else if (c.staSsid[0]) {
+    WiFi.begin(c.staSsid, c.staPass);
   }
 
   if (plan.sta) {
@@ -446,6 +448,33 @@ void scan() {
     Serial.println(F(" more not shown)"));
   }
   WiFi.scanDelete();
+}
+
+void waitForSta(uint32_t timeoutMs) {
+  if ((WiFi.getMode() & WIFI_STA) == 0) {
+    printLine();
+    return;
+  }
+  if (!Settings::get().staSsid[0]) {
+    printLine();
+    return;
+  }
+  const uint32_t start = millis();
+  while ((millis() - start) < timeoutMs) {
+    const wl_status_t st = WiFi.status();
+    if (st == WL_CONNECTED) {
+      holdStaDns();
+      refreshInfo();
+      printLine();
+      return;
+    }
+    if (st == WL_NO_SSID_AVAIL || st == WL_CONNECT_FAILED) {
+      break;
+    }
+    delay(200);
+  }
+  refreshInfo();
+  printLine();
 }
 
 void disconnectSta() {
