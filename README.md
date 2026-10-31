@@ -72,4 +72,4 @@ platformio.ini multi-board environments
 
 Maintained by [Asiedu Minta Kwaku](https://asiedudevhub.auralenx.com/) / ASIEDU DEVELOPMENT HUB.
 
-GitHub remote (pending authorized rename to `icanova-edge-gateway`): `AsieduDevelopmentHub/dse-modbus-gateway`.
+GitHub: [AsieduDevelopmentHub/icanova-edge-gateway](https://github.com/AsieduDevelopmentHub/icanova-edge-gateway).

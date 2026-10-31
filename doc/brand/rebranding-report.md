@@ -7,10 +7,10 @@
 
 | Item | Previous | New | Status |
 | ---- | -------- | --- | ------ |
-| Gateway GitHub | `AsieduDevelopmentHub/dse-modbus-gateway` | `icanova-edge-gateway` | **Not renamed** — needs owner authorization |
-| Web GitHub | `AsieduDevelopmentHub/dse-gateway-web` | `icanova-monitoring-web` | **Not renamed** — needs owner authorization |
+| Gateway GitHub | `AsieduDevelopmentHub/dse-modbus-gateway` | `icanova-edge-gateway` | Done on GitHub |
+| Web GitHub | `AsieduDevelopmentHub/dse-gateway-web` | `icanova-monitoring-web` | Done on GitHub |
 | Local directories | `dse-modbus-gateway`, `dse-gateway-web` | `icanova-edge-gateway`, `icanova-monitoring-web` | Script ready — Cursor locks folders while open; run `D:\dev\rename-icanova-folders.ps1` after closing this workspace |
-| Git remotes | existing URLs | unchanged | Documented; do not force-update until GitHub rename |
+| Git remotes | old URLs | new canonical URLs | Done — `git remote set-url` + fetch OK |
 | package.json (web) | `dse-gateway-web` | `icanova-monitoring-web` | Done |
 
 ## 2. Branding implementation
