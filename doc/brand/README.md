@@ -406,17 +406,17 @@ Example startu message:
 ```text
 =====================================
              iCanOva
-       INDUSTRIAL EDGE GATEWAY
+       iCanOva Edge Gateway
 =====================================
+Imagine. Connect. Innovate.
+Family: iCanOva Edge
 
-Firmware Version: x.x.x
+Board: ESP32-C3 SuperMini
 Device ID: <DEVICE_ID>
-Communication: RS485
-Protocol: Modbus RTU
-Status: Initializing...
+Communication: RS485 / Modbus RTU
 ```
 
-The example is illustrative. Preserve existing startup behavior and actual firmware metadata.
+The example matches current CLI branding. There is no dedicated firmware version string yet — do not invent one in production metadata.
 
 ## 7.3 Hardware identity
 

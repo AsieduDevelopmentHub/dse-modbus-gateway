@@ -3,10 +3,13 @@
 Embedded industrial edge gateway for connecting and monitoring industrial equipment through supported communication interfaces.
 
 **Brand:** iCanOva — Imagine. Connect. Innovate.  
+**Product family:** iCanOva Edge · **Product:** iCanOva Edge Gateway · **Category:** Industrial IoT Gateway  
+**Companion platform:** iCanOva Monitoring  
 **Descriptor:** Intelligent technology for connected industries.  
-A technology platform by ASIEDU DEVELOPMENT HUB (ADH).
+Manufacturer: iCanOva · Parent: ASIEDU DEVELOPMENT HUB (ADH).  
+Product identity: `doc/product/`.
 
-This repository is the edge firmware and device software. The web monitoring platform lives in the sibling folder `dev/iot/icanova-monitoring-web` (GitHub name still `dse-gateway-web` until renamed).
+This repository is the edge firmware and device software. The web monitoring platform lives in the sibling repository [`icanova-monitoring-web`](https://github.com/AsieduDevelopmentHub/icanova-monitoring-web) (`dev/iot/icanova-monitoring-web` locally when renamed).
 
 ## Purpose
 
@@ -45,7 +48,7 @@ RTS/DTR off for native USB CDC. See [doc/guide/getting_started.md](doc/guide/get
 
 ## Configuration
 
-Saved settings: `/etc/gateway.conf` via the USB console (`config set …`). Soft-AP SSID prefix remains `DSE-GW` for field compatibility. Default hostname for new installs is `icanova-gw`.
+Saved settings: `/etc/gateway.conf` via the USB console (`config set …`). Default Soft-AP SSID is `ICANOVA-EDGE-XXXX` (password `icanovaedge`). Default hostname for new installs is `icanova-edge`. See `doc/product/network-identity-implementation-notes.md`.
 
 ## Docs
 

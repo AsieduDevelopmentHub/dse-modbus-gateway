@@ -60,7 +60,8 @@ footer{margin-top:2rem;color:var(--muted);font-size:.75rem}
 <div class="wrap" id="app">
   <header class="hero">
     <p class="brand">iCanOva</p>
-    <p class="sub">Industrial Edge Gateway</p>
+    <p class="sub">iCanOva Edge Gateway</p>
+    <p class="meta">Imagine. Connect. Innovate. · Family: iCanOva Edge</p>
     <nav>
       <button type="button" id="tabMon" class="on">Monitor</button>
       <button type="button" id="tabCfg">Configure</button>
@@ -91,7 +92,7 @@ footer{margin-top:2rem;color:var(--muted);font-size:.75rem}
     <div class="scroll"><table class="cfg"><thead><tr><th>Address</th><th>Name</th><th>Access</th><th>Value</th><th>Write</th></tr></thead><tbody id="cfgRows"></tbody></table></div>
     <p class="meta" id="cfgMsg"></p>
   </div>
-  <footer>Monitor polls /api/status. Configure reads and writes GenComm pages.</footer>
+  <footer>iCanOva Edge Gateway · ASIEDU DEVELOPMENT HUB (ADH). Monitor polls /api/status. Configure reads and writes GenComm pages.</footer>
 </div>
 <script>
 const $=id=>document.getElementById(id);

@@ -56,6 +56,8 @@ bool begin() {
     File f = LittleFS.open("/etc/motd", "w");
     if (f) {
       f.println("iCanOva Edge Gateway");
+      f.println("Family: iCanOva Edge");
+      f.println("Imagine. Connect. Innovate.");
       f.println("Imagine. Connect. Innovate.");
       f.println();
       f.println("Industrial edge gateway for RS485 / Modbus RTU monitoring.");

@@ -123,7 +123,7 @@ bool copyText(char *dst, size_t dstN, const char *value, size_t maxLen,
 
 void setDefaults(GatewayConfig *c) {
   memset(c, 0, sizeof(*c));
-  strncpy(c->hostname, "icanova-gw", sizeof(c->hostname) - 1);
+  strncpy(c->hostname, "icanova-edge", sizeof(c->hostname) - 1);
   strncpy(c->device, "dse7320", sizeof(c->device) - 1);
   c->slave = MODBUS_SLAVE_ID;
   c->baud = MODBUS_BAUD_RATE;
@@ -572,7 +572,7 @@ bool loaded() { return gLoaded; }
 const GatewayConfig &get() { return gCfg; }
 
 const char *hostname() {
-  return gCfg.hostname[0] ? gCfg.hostname : "icanova-gw";
+  return gCfg.hostname[0] ? gCfg.hostname : "icanova-edge";
 }
 
 const char *path() { return kPath; }
@@ -749,7 +749,7 @@ bool gInit = false;
 void fill() {
   if (gInit) return;
   memset(&gCfg, 0, sizeof(gCfg));
-  strncpy(gCfg.hostname, "icanova-gw", sizeof(gCfg.hostname) - 1);
+  strncpy(gCfg.hostname, "icanova-edge", sizeof(gCfg.hostname) - 1);
   gCfg.slave = MODBUS_SLAVE_ID;
   gCfg.baud = MODBUS_BAUD_RATE;
   gCfg.parity = MODBUS_PARITY;
@@ -771,7 +771,7 @@ const GatewayConfig &get() {
   fill();
   return gCfg;
 }
-const char *hostname() { return "icanova-gw"; }
+const char *hostname() { return "icanova-edge"; }
 const char *path() { return ""; }
 bool put(const char *, const char *, char *err, size_t errN) {
   if (err && errN) {

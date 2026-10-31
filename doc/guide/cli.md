@@ -19,7 +19,7 @@ Device ID: ..................
 Communication: RS485 / Modbus RTU
 Logged in as admin
 ...
-admin@dse-gw:/etc$ help
+admin@icanova-edge:/etc$ help
 cat motd
 cat conf
 edit conf
@@ -28,7 +28,7 @@ reboot
 logout
 ```
 
-Until a final logo is approved, the console uses the text wordmark **iCanOva** (see `doc/brand/assets/logo/README.md`).
+Startup banner identifies **iCanOva Edge Gateway** (family **iCanOva Edge**). Until a final logo is approved, the console uses the text wordmark **iCanOva** (see `doc/brand/assets/logo/README.md`).
 
 Line editing: Left/Right, Home/End, Up/Down history, Backspace, Delete, Tab completion, Ctrl-U (clear line), Ctrl-W (delete word), `clear` or `cls` or Ctrl-L (clear screen), Ctrl-C (cancel the line), Ctrl-D on an empty line (logout).
 

@@ -27,7 +27,7 @@ Final logo is on hold. Until approved, use a clean text wordmark: **iCanOva**. D
 
 Left unchanged on purpose (compatibility contracts):
 
-- Soft-AP SSID prefix `DSE-GW` (field devices and docs already use it).
+- Soft-AP SSID prefix `ICANOVA-EDGE` (see `doc/product/network-identity-implementation-notes.md`).
 - Auth JWT audience and issuer (set by environment / Auth0).
 - Modbus addresses, SCF keys, GenComm pages, NVS/config key names.
 - GitHub remote repository names until an authorized rename.

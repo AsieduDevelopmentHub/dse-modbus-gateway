@@ -125,10 +125,10 @@
 // Soft-AP always starts. Optional STA: set WIFI_STA_SSID (non-empty) to join.
 // ---------------------------------------------------------------------------
 #ifndef WIFI_AP_SSID_PREFIX
-#define WIFI_AP_SSID_PREFIX "DSE-GW"
+#define WIFI_AP_SSID_PREFIX "ICANOVA-EDGE"
 #endif
 #ifndef WIFI_AP_PASSWORD
-#define WIFI_AP_PASSWORD "dsegateway"
+#define WIFI_AP_PASSWORD "icanovaedge"
 #endif
 #ifndef WIFI_STA_SSID
 #define WIFI_STA_SSID ""

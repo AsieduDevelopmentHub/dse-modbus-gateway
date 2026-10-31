@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "auth/auth.h"
+#include "brand/product_identity.h"
 #include "cli/shell.h"
 #include "config/config.h"
 #include "config/settings.h"
@@ -72,12 +73,17 @@ ModbusTxnInfo Cli::makeTxnInfo() const {
 
 void Cli::printBrandIntro() {
   // Text wordmark until a final logo is approved (doc/brand/assets/logo).
+  // Display strings only — see src/brand/product_identity.h.
   Serial.println();
   Serial.println(F("====================================="));
-  Serial.println(F("             iCanOva"));
-  Serial.println(F("       INDUSTRIAL EDGE GATEWAY"));
+  Serial.print(F("             "));
+  Serial.println(F(ICANOVA_BRAND));
+  Serial.print(F("       "));
+  Serial.println(F(ICANOVA_PRODUCT_NAME));
   Serial.println(F("====================================="));
-  Serial.println(F("Imagine. Connect. Innovate."));
+  Serial.println(F(ICANOVA_TAGLINE));
+  Serial.print(F("Family: "));
+  Serial.println(F(ICANOVA_PRODUCT_FAMILY));
   Serial.println();
   Serial.print(F("Board: "));
   Serial.println(F(BOARD_NAME));

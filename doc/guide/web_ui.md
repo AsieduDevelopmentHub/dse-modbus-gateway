@@ -1,6 +1,6 @@
 # Web UI — ESP32 local API + overview
 
-**Product:** iCanOva Edge Gateway (embedded page). The React monitoring platform is the sibling `icanova-monitoring-web` folder.
+**Product:** iCanOva Edge Gateway (family **iCanOva Edge**; embedded page). Companion platform: **iCanOva Monitoring** (`icanova-monitoring-web`).
 
 Phase 3A: Wi-Fi soft-AP + JSON status API + thin genset overview page on the **ESP32-C3** only. USB Serial CLI is unchanged. Mega / Uno / Nano stay RS485 benches (no Wi-Fi stack).
 
@@ -11,8 +11,8 @@ Phase 3A: Wi-Fi soft-AP + JSON status API + thin genset overview page on the **E
 ## Connect
 
 1. Flash `esp32-c3-supermini`.
-2. Join Wi-Fi SSID `DSE-GW-XXXX` (suffix from chip MAC).
-3. Password default: `dsegateway` (change via `WIFI_AP_PASSWORD` in [`src/config/config.h`](../../src/config/config.h)).
+2. Join Wi-Fi SSID `ICANOVA-EDGE-XXXX` (suffix from chip MAC).
+3. Password default: `icanovaedge` (change via `WIFI_AP_PASSWORD` in [`src/config/config.h`](../../src/config/config.h)).
 4. Open **http://192.168.4.1/**
 
 Optional STA: set `WIFI_STA_SSID` / `WIFI_STA_PASSWORD` at compile time. Soft-AP still runs; STA IP appears in `/api/status` when joined.
