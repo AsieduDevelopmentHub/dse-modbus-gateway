@@ -23,7 +23,7 @@ Do **not** declare physical Modbus success until a CRC-valid frame is captured o
 
 - Soft-AP `DSE-GW-XXXX` + `GET /`, `/api/status`, `/api/health`
 - Telemetry snapshot (mode, RPM, battery, V/A/kW, alarms)
-- React app in `dev/iot/dse-gateway-web` (same JSON contract + mock)
+- React app in `dev/iot/icanova-monitoring-web` (same JSON contract + mock)
 - Guide: [doc/guide/web_ui.md](../guide/web_ui.md)
 
 ---

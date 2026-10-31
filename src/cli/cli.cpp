@@ -73,9 +73,19 @@ ModbusTxnInfo Cli::makeTxnInfo() const {
 void Cli::present() {
   const ModbusDeviceConfig &d = devices.selected();
   Serial.println();
-  Serial.println(F("DSE Modbus RTU Gateway"));
+  Serial.println(F("====================================="));
+  Serial.println(F("             iCanOva"));
+  Serial.println(F("       INDUSTRIAL EDGE GATEWAY"));
+  Serial.println(F("====================================="));
   Serial.print(F("Board: "));
   Serial.println(F(BOARD_NAME));
+  Serial.print(F("Selected: "));
+  Serial.println(d.name);
+  Serial.print(F("Slave ID: "));
+  Serial.println(_slaveId);
+  Serial.print(F("Baud: "));
+  Serial.println(_baudRate);
+  Serial.println(F("Communication: RS485 / Modbus RTU"));
 #if defined(GATEWAY_LITE)
   Serial.println(F("Build: GATEWAY_LITE (Modbus diagnostics; no DSE named map)"));
 #endif
@@ -96,15 +106,8 @@ void Cli::present() {
   }
   WifiPortal::printLine();
 #else
-  Serial.print(F("Selected: "));
-  Serial.println(d.name);
-  Serial.print(F("Slave ID: "));
-  Serial.println(_slaveId);
-  Serial.print(F("Baud: "));
-  Serial.println(_baudRate);
   Serial.println(F("Type 'help' to start."));
 #endif
-  (void)d;
   showPrompt();
 }
 

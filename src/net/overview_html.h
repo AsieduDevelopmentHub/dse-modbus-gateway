@@ -9,20 +9,20 @@ static const char OVERVIEW_HTML[] PROGMEM = R"HTML(<!DOCTYPE html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>DSE Gateway</title>
+<title>iCanOva Edge Gateway</title>
 <style>
 :root{
-  --bg:#0e1412;--bg2:#16201c;--ink:#e8f0eb;--muted:#8aa396;
-  --accent:#3d9b6e;--warn:#d4a017;--bad:#c44b4b;--line:#24332c;
+  --bg:#111820;--bg2:#263746;--ink:#F2F1ED;--muted:#B8BABC;
+  --accent:#A8754D;--warn:#D18A26;--bad:#C64747;--ok:#24845B;--line:#637B83;
   --font:"Segoe UI",system-ui,sans-serif;
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:var(--font);background:radial-gradient(1200px 600px at 10% -10%,#1a2e26 0%,var(--bg) 55%);
+body{margin:0;font-family:var(--font);background:var(--bg);
 color:var(--ink);min-height:100vh}
 .wrap{max-width:960px;margin:0 auto;padding:1.25rem 1rem 2.5rem}
 nav{display:flex;gap:.4rem;margin:.7rem 0 0}
 nav button,button.act,.tools button,.tools select,.tools input{font:inherit;color:var(--ink);background:var(--bg2);border:1px solid var(--line);padding:.35rem .65rem}
-nav button.on{border-color:var(--accent);color:#9fd9b8}
+nav button.on{border-color:var(--accent);color:#F2F1ED}
 .tools{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.7rem 0}
 table.cfg{width:100%;border-collapse:collapse;font-size:.85rem}
 table.cfg th,table.cfg td{border-bottom:1px solid var(--line);text-align:left;padding:.4rem .3rem;vertical-align:top}
@@ -35,7 +35,7 @@ table.cfg th{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter
 .meta{color:var(--muted);font-size:.85rem}
 .pill{display:inline-block;padding:.15rem .55rem;border-radius:4px;font-size:.75rem;
 background:var(--bg2);border:1px solid var(--line);margin-right:.35rem}
-.pill.ok{border-color:var(--accent);color:#9fd9b8}
+.pill.ok{border-color:var(--ok);color:#9fd9b8}
 .pill.bad{border-color:var(--bad);color:#f0a8a8}
 .pill.warn{border-color:var(--warn);color:#e8d08a}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem;margin-top:1.1rem}
@@ -59,7 +59,8 @@ footer{margin-top:2rem;color:var(--muted);font-size:.75rem}
 <body>
 <div class="wrap" id="app">
   <header class="hero">
-    <p class="brand">DSE Gateway</p>
+    <p class="brand">iCanOva</p>
+    <p class="sub">Industrial Edge Gateway</p>
     <nav>
       <button type="button" id="tabMon" class="on">Monitor</button>
       <button type="button" id="tabCfg">Configure</button>

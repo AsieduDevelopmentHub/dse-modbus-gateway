@@ -2,7 +2,7 @@
 
 Reads doc/dse_register_map/gencomm_pages.json and live_7320.json.
 Writes src/net/gencomm_catalog.h, and public/gencomm.json in
-dev/iot/dse-gateway-web when that folder exists.
+dev/iot/icanova-monitoring-web when that folder exists.
 """
 
 import json
@@ -12,7 +12,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "doc" / "dse_register_map" / "gencomm_pages.json"
 LIVE = ROOT / "doc" / "dse_register_map" / "live_7320.json"
-WEB_REPO = ROOT.parent.parent / "iot" / "dse-gateway-web"
+_iot = ROOT.parent.parent / "iot"
+WEB_REPO = next(
+    (
+        p
+        for p in (
+            _iot / "icanova-monitoring-web",
+            _iot / "dse-gateway-web",
+        )
+        if p.is_dir()
+    ),
+    _iot / "icanova-monitoring-web",
+)
 WEB_OUT = WEB_REPO / "public" / "gencomm.json"
 HDR_OUT = ROOT / "src" / "net" / "gencomm_catalog.h"
 

@@ -1,5 +1,7 @@
 # Web UI — ESP32 local API + overview
 
+**Product:** iCanOva Edge Gateway (embedded page). The React monitoring platform is the sibling `icanova-monitoring-web` folder.
+
 Phase 3A: Wi-Fi soft-AP + JSON status API + thin genset overview page on the **ESP32-C3** only. USB Serial CLI is unchanged. Mega / Uno / Nano stay RS485 benches (no Wi-Fi stack).
 
 **Modbus note:** live values need CRC-valid RS485. If RO is still 5V into the ESP32 RX, the UI will show `link: fail` / stale data — that is a level-shifter issue, not a UI bug.
@@ -33,7 +35,7 @@ Optional STA: set `WIFI_STA_SSID` / `WIFI_STA_PASSWORD` at compile time. Soft-AP
 
 Configure lists every captured GenComm page. Registers marked read/write or write-only, and unmarked registers on pages 128 and above, get a write box. Password rows send the value and its ones complement in one FC16. Read page refreshes the open page from the module. Control buttons ask before they are sent; commands that can start the set or move a breaker say so.
 
-The React app lives in `dev/iot/dse-gateway-web` (not in this firmware tree). It has the same Monitor / Configure split. `pnpm dev:mock` uses the captured snapshot and does not write to a module. `pnpm dev` sends reads and writes to the gateway.
+The React app lives in `dev/iot/icanova-monitoring-web` (not in this firmware tree). It has the same Monitor / Configure split. `pnpm dev:mock` uses the captured snapshot and does not write to a module. `pnpm dev` sends reads and writes to the gateway.
 
 CORS `*` is enabled on `/api/*` for the React dev app.
 
@@ -67,10 +69,10 @@ Refresh interval ≈ **2.5 s** from `Telemetry::poll()` in `loop()`.
 
 ---
 
-## React app (`dev/iot/dse-gateway-web`)
+## React app (`dev/iot/icanova-monitoring-web`)
 
 ```bash
-cd ../../iot/dse-gateway-web
+cd ../../iot/icanova-monitoring-web
 pnpm install
 pnpm dev          # proxy to gateway
 pnpm dev:mock     # mock JSON (no hardware)
