@@ -70,22 +70,42 @@ ModbusTxnInfo Cli::makeTxnInfo() const {
   return info;
 }
 
-void Cli::present() {
-  const ModbusDeviceConfig &d = devices.selected();
+void Cli::printBrandIntro() {
+  // Text wordmark until a final logo is approved (doc/brand/assets/logo).
   Serial.println();
   Serial.println(F("====================================="));
   Serial.println(F("             iCanOva"));
   Serial.println(F("       INDUSTRIAL EDGE GATEWAY"));
   Serial.println(F("====================================="));
+  Serial.println(F("Imagine. Connect. Innovate."));
+  Serial.println();
   Serial.print(F("Board: "));
   Serial.println(F(BOARD_NAME));
+#if defined(ARDUINO_ARCH_ESP32)
+  {
+    const uint64_t efuse = ESP.getEfuseMac();
+    Serial.print(F("Device ID: "));
+    Serial.printf("%02x%02x%02x%02x%02x%02x\n",
+                  static_cast<unsigned>((efuse >> 0) & 0xff),
+                  static_cast<unsigned>((efuse >> 8) & 0xff),
+                  static_cast<unsigned>((efuse >> 16) & 0xff),
+                  static_cast<unsigned>((efuse >> 24) & 0xff),
+                  static_cast<unsigned>((efuse >> 32) & 0xff),
+                  static_cast<unsigned>((efuse >> 40) & 0xff));
+  }
+#endif
+  Serial.println(F("Communication: RS485 / Modbus RTU"));
+}
+
+void Cli::present() {
+  const ModbusDeviceConfig &d = devices.selected();
+  printBrandIntro();
   Serial.print(F("Selected: "));
   Serial.println(d.name);
   Serial.print(F("Slave ID: "));
   Serial.println(_slaveId);
   Serial.print(F("Baud: "));
   Serial.println(_baudRate);
-  Serial.println(F("Communication: RS485 / Modbus RTU"));
 #if defined(GATEWAY_LITE)
   Serial.println(F("Build: GATEWAY_LITE (Modbus diagnostics; no DSE named map)"));
 #endif
@@ -1971,12 +1991,18 @@ void Cli::onSubmitted(char *line) {
       }
       _mode = ConsoleMode::Shell;
       _lastInputMs = millis();
+      printBrandIntro();
       Serial.print(F("Logged in as "));
       Serial.println(Auth::user());
+      Serial.print(F("Hostname: "));
+      Serial.println(Settings::hostname());
+      WifiPortal::printBrief();
       if (Auth::factoryPassword()) {
         Serial.println(F("Factory password is still set. Run: passwd"));
       }
+      Serial.println();
       Vfs::showMotd();
+      Serial.println(F("Type help for commands."));
       Serial.println(F("View: cat motd     cat conf"));
       Serial.println(F("Edit: edit motd    edit conf     then wq to save"));
       Serial.println(F("Reboot: reboot"));

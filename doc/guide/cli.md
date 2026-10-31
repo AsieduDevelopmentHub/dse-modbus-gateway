@@ -7,6 +7,18 @@ This is a local console login, the same account idea as SSH: username, hidden pa
 ```text
 login: admin
 Password:
+
+=====================================
+             iCanOva
+       INDUSTRIAL EDGE GATEWAY
+=====================================
+Imagine. Connect. Innovate.
+
+Board: ESP32-C3 SuperMini
+Device ID: ..................
+Communication: RS485 / Modbus RTU
+Logged in as admin
+...
 admin@dse-gw:/etc$ help
 cat motd
 cat conf
@@ -15,6 +27,8 @@ config reload
 reboot
 logout
 ```
+
+Until a final logo is approved, the console uses the text wordmark **iCanOva** (see `doc/brand/assets/logo/README.md`).
 
 Line editing: Left/Right, Home/End, Up/Down history, Backspace, Delete, Tab completion, Ctrl-U (clear line), Ctrl-W (delete word), `clear` or `cls` or Ctrl-L (clear screen), Ctrl-C (cancel the line), Ctrl-D on an empty line (logout).
 

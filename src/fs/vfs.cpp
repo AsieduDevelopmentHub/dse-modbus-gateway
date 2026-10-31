@@ -55,10 +55,14 @@ bool begin() {
   if (!LittleFS.exists("/etc/motd")) {
     File f = LittleFS.open("/etc/motd", "w");
     if (f) {
-      f.println("View:  cat motd");
-      f.println("Edit:  edit motd     or    edit conf");
-      f.println("Save:  wq            Discard: q!");
-      f.println("Config file is /etc/gateway.conf. After editing it: config reload");
+      f.println("iCanOva Edge Gateway");
+      f.println("Imagine. Connect. Innovate.");
+      f.println();
+      f.println("Industrial edge gateway for RS485 / Modbus RTU monitoring.");
+      f.println("Type help for commands.");
+      f.println("View:  cat motd     cat conf");
+      f.println("Edit:  edit motd    edit conf     then wq to save");
+      f.println("After editing /etc/gateway.conf: config reload");
       f.close();
     }
   }

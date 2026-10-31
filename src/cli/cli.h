@@ -37,6 +37,7 @@ private:
   void adoptSettings();
   bool persistSetting(const char *key, const char *value);
 
+  void printBrandIntro();
   void printHelp();
   void printStatus();
   void printConfig();
